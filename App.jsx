@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Calculator, 
   TrendingUp, 
@@ -16,14 +16,16 @@ import {
   ScrollText,
   Target,
   ArrowLeftRight,
-  Info
+  Info,
+  Coins,
+  BarChart3
 } from 'lucide-react';
 
 // --- HELPER COMPONENTS ---
 
 // Komponent łączący Slider z Inputem
-const DualInput = ({ label, value, onChange, min, max, step, unit, color = "accent-amber-500" }) => (
-  <div className="mb-4">
+const DualInput = ({ label, value, onChange, min, max, step, unit, color = "accent-amber-500", disabled = false }) => (
+  <div className={`mb-4 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
     <div className="flex justify-between items-center mb-2">
       <label className="text-sm font-medium text-slate-300">{label}</label>
       <div className="flex items-center">
@@ -43,6 +45,56 @@ const DualInput = ({ label, value, onChange, min, max, step, unit, color = "acce
     />
   </div>
 );
+
+// Prosty wykres słupkowy dla trybu PRO
+const ComparisonChart = ({ scenarioA, scenarioB, showCosts }) => {
+    const maxVal = Math.max(scenarioA.newRevenue, scenarioB.newRevenue) * 1.1; // 10% bufor
+    
+    const Bar = ({ label, revenue, profit, color }) => {
+        const heightRevenue = (revenue / maxVal) * 100;
+        const heightProfit = (profit / maxVal) * 100;
+        
+        return (
+            <div className="flex flex-col items-center flex-1 mx-2 group">
+                <div className="relative w-full bg-slate-800 rounded-t-lg overflow-hidden flex flex-col justify-end h-32 md:h-40 transition-all">
+                    {/* Revenue Bar */}
+                    <div 
+                        style={{ height: `${heightRevenue}%` }} 
+                        className={`w-full ${color} opacity-30 absolute bottom-0 transition-all duration-500`}
+                    ></div>
+                    {/* Profit Bar (on top if costs enabled, else same as revenue) */}
+                    <div 
+                        style={{ height: `${showCosts ? heightProfit : heightRevenue}%` }} 
+                        className={`w-full ${color} absolute bottom-0 transition-all duration-500 flex items-end justify-center pb-1`}
+                    >
+                        <span className="text-[10px] font-bold text-slate-900 bg-white/80 px-1 rounded shadow-sm">
+                            {(showCosts ? profit : revenue).toLocaleString()}
+                        </span>
+                    </div>
+                </div>
+                <span className="text-xs font-bold mt-2 text-slate-400">{label}</span>
+                {showCosts && <span className="text-[10px] text-slate-500">Zysk</span>}
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex justify-center items-end h-full w-full pt-4 pb-2 px-2 bg-slate-950/30 rounded-xl border border-slate-800 mb-6">
+            <Bar 
+                label="Scenariusz A" 
+                revenue={scenarioA.newRevenue} 
+                profit={scenarioA.newProfit} 
+                color="bg-blue-500" 
+            />
+            <Bar 
+                label="Scenariusz B" 
+                revenue={scenarioB.newRevenue} 
+                profit={scenarioB.newProfit} 
+                color="bg-amber-500" 
+            />
+        </div>
+    );
+};
 
 // --- MAIN APP ---
 
@@ -129,11 +181,17 @@ const App = () => {
 };
 
 // --- LOGIC HELPER ---
-const calculateScenario = (clients, sessionsPerClient, price, increasePercent, churnPercent) => {
+const calculateScenario = (clients, sessionsPerClient, price, increasePercent, churnPercent, fixedCosts = 0, variableCostPerSession = 0, useCosts = false) => {
+    // Current State
     const totalSessions = clients * sessionsPerClient;
     const currentRevenue = totalSessions * price;
+    const currentTotalVariableCosts = totalSessions * variableCostPerSession;
+    const currentProfit = useCosts ? (currentRevenue - fixedCosts - currentTotalVariableCosts) : currentRevenue;
+    
     const currentHourlyRate = totalSessions > 0 ? currentRevenue / totalSessions : 0;
+    const currentEffectiveHourlyRate = totalSessions > 0 ? currentProfit / totalSessions : 0; // zysk na godzinę
 
+    // New State
     const newPrice = Math.round(price * (1 + increasePercent / 100));
     const clientsLost = Math.round(clients * (churnPercent / 100));
     const clientsLeft = clients - clientsLost;
@@ -142,27 +200,59 @@ const calculateScenario = (clients, sessionsPerClient, price, increasePercent, c
     const newTotalSessions = totalSessions - sessionsLost;
     const newRevenue = newTotalSessions * newPrice;
     
+    const newTotalVariableCosts = newTotalSessions * variableCostPerSession;
+    const newProfit = useCosts ? (newRevenue - fixedCosts - newTotalVariableCosts) : newRevenue;
+    
     const newHourlyRate = newTotalSessions > 0 ? newRevenue / newTotalSessions : 0;
+    const newEffectiveHourlyRate = newTotalSessions > 0 ? newProfit / newTotalSessions : 0; // zysk na godzinę
     
+    // Differences
     const revenueDiff = newRevenue - currentRevenue;
-    const revenueChangePercent = currentRevenue > 0 ? ((newRevenue - currentRevenue) / currentRevenue) * 100 : 0;
+    const profitDiff = newProfit - currentProfit;
     
-    // Wycena odzyskanego czasu (Time Saved * New Effective Hourly Rate)
-    // To pokazuje potencjał - ile warte są te godziny, jeśli zapełnisz je nowymi klientami
-    const timeValue = sessionsLost * newHourlyRate;
+    // Jeśli używamy kosztów, metryką sukcesu jest Różnica w Zysku, jeśli nie - Różnica w Przychodzie
+    const financialDiff = useCosts ? profitDiff : revenueDiff;
+    const financialChangePercent = (useCosts ? currentProfit : currentRevenue) > 0 
+        ? (financialDiff / (useCosts ? currentProfit : currentRevenue)) * 100 
+        : 0;
+    
+    // Wycena odzyskanego czasu
+    // Jeśli mamy koszty zmienne, to "odzyskana godzina" to też zaoszczędzony koszt (np. paliwo)
+    // Ale w kontekście opportunity cost, liczymy ile byśmy ZAROBILI na nowej stawce (marża)
+    const marginPerSession = newPrice - (useCosts ? variableCostPerSession : 0);
+    const timeValue = sessionsLost * marginPerSession;
+    
+    // Break Even Point (Ile klientów może odejść, aby wyjść na zero w ZYSKU)
+    // Profit_Current = Profit_New
+    // (Clients * Sessions * (Price - Var)) - Fixed = ((Clients - X) * Sessions * (NewPrice - Var)) - Fixed
+    // Clients * (Price - Var) = (Clients - X) * (NewPrice - Var)
+    // X = Clients - ( Clients * (Price - Var) / (NewPrice - Var) )
+    const marginCurrent = price - (useCosts ? variableCostPerSession : 0);
+    const marginNew = newPrice - (useCosts ? variableCostPerSession : 0);
+    
+    let breakEvenClients = 0;
+    if (marginNew > 0) {
+        breakEvenClients = clients - ((clients * marginCurrent) / marginNew);
+    }
+    // Jeśli marginNew <= 0 to znaczy że dokładamy do interesu, więc BEP nie istnieje (jest 0)
 
     return {
         currentRevenue,
         newRevenue,
-        revenueDiff,
-        revenueChangePercent,
+        currentProfit,
+        newProfit,
+        financialDiff, // GŁÓWNA METRYKA ZMIANY
+        financialChangePercent,
         clientsLost,
         clientsLeft,
         sessionsLost,
         newPrice,
         currentHourlyRate,
         newHourlyRate,
-        timeValue
+        currentEffectiveHourlyRate, // net hourly
+        newEffectiveHourlyRate, // net hourly
+        timeValue,
+        breakEvenClients: Math.floor(breakEvenClients)
     };
 };
 
@@ -173,11 +263,16 @@ const CalculatorTab = () => {
   // Global State
   const [mode, setMode] = useState('basic'); // basic, pro
   const [proModeType, setProModeType] = useState('compare'); // compare, reverse
+  const [showCosts, setShowCosts] = useState(false);
 
   // Base Inputs
   const [clients, setClients] = useState(15);
   const [sessionsPerClient, setSessionsPerClient] = useState(8);
   const [price, setPrice] = useState(150);
+  
+  // Costs Inputs
+  const [fixedCosts, setFixedCosts] = useState(2000); // np. ZUS, czynsz
+  const [variableCost, setVariableCost] = useState(0); // np. dojazd, % dla klubu
 
   // Scenario A Inputs (Used for Basic & Pro A)
   const [increaseA, setIncreaseA] = useState(20);
@@ -192,10 +287,10 @@ const CalculatorTab = () => {
   const [maxChurn, setMaxChurn] = useState(15);
 
   // Calculations
-  const scenarioA = calculateScenario(clients, sessionsPerClient, price, increaseA, churnA);
-  const scenarioB = calculateScenario(clients, sessionsPerClient, price, increaseB, churnB);
+  const scenarioA = calculateScenario(clients, sessionsPerClient, price, increaseA, churnA, fixedCosts, variableCost, showCosts);
+  const scenarioB = calculateScenario(clients, sessionsPerClient, price, increaseB, churnB, fixedCosts, variableCost, showCosts);
 
-  // Reverse Calculation Logic
+  // Reverse Calculation Logic (simplified for Revenue target)
   const calculateReverse = () => {
     const currentClientsAfterChurn = clients * (1 - maxChurn / 100);
     const totalSessionsAfterChurn = currentClientsAfterChurn * sessionsPerClient;
@@ -262,6 +357,33 @@ const CalculatorTab = () => {
               label="Obecna stawka za trening" 
               value={price} onChange={setPrice} min={50} max={1000} step={10} unit="PLN" 
             />
+            
+            {/* COSTS TOGGLE */}
+            <div className="mt-6 pt-4 border-t border-slate-800">
+                <button 
+                    onClick={() => setShowCosts(!showCosts)}
+                    className="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-white transition-colors w-full"
+                >
+                    <Coins className={`w-4 h-4 ${showCosts ? 'text-amber-500' : ''}`} />
+                    {showCosts ? "Ukryj koszty" : "Uwzględnij koszty (Opcjonalne)"}
+                </button>
+                
+                {showCosts && (
+                    <div className="mt-4 animate-in slide-in-from-top-2">
+                        <DualInput 
+                            label="Koszty stałe (mies.)" 
+                            value={fixedCosts} onChange={setFixedCosts} min={0} max={20000} step={100} unit="PLN" color="accent-slate-500"
+                        />
+                        <DualInput 
+                            label="Koszt zmienny (za 1h)" 
+                            value={variableCost} onChange={setVariableCost} min={0} max={500} step={10} unit="PLN" color="accent-slate-500"
+                        />
+                        <p className="text-[10px] text-slate-500 mt-2">
+                            *Wliczając koszty, kalkulator pokaże zmianę <strong>DOCHODU</strong> (zysku), a nie przychodu.
+                        </p>
+                    </div>
+                )}
+            </div>
           </div>
 
           {mode === 'basic' && (
@@ -271,11 +393,11 @@ const CalculatorTab = () => {
                 </h2>
                 <DualInput 
                   label="Planowana podwyżka" 
-                  value={increaseA} onChange={setIncreaseA} min={0} max={100} step={5} unit="%" color="accent-blue-500"
+                  value={increaseA} onChange={setIncreaseA} min={0} max={100} step={1} unit="%" color="accent-blue-500"
                 />
                 <DualInput 
                   label="Szacowany churn (odejścia)" 
-                  value={churnA} onChange={setChurnA} min={0} max={50} step={5} unit="%" color="accent-red-500"
+                  value={churnA} onChange={setChurnA} min={0} max={50} step={1} unit="%" color="accent-red-500"
                 />
              </div>
           )}
@@ -301,20 +423,20 @@ const CalculatorTab = () => {
                  <div className="space-y-8">
                     <div>
                         <div className="text-xs font-bold text-blue-400 mb-4 uppercase tracking-wider">Scenariusz A</div>
-                        <DualInput label="Podwyżka A" value={increaseA} onChange={setIncreaseA} min={0} max={100} step={5} unit="%" color="accent-blue-500"/>
-                        <DualInput label="Churn A" value={churnA} onChange={setChurnA} min={0} max={50} step={5} unit="%" color="accent-red-500"/>
+                        <DualInput label="Podwyżka A" value={increaseA} onChange={setIncreaseA} min={0} max={100} step={1} unit="%" color="accent-blue-500"/>
+                        <DualInput label="Churn A" value={churnA} onChange={setChurnA} min={0} max={50} step={1} unit="%" color="accent-red-500"/>
                     </div>
                     <div>
                         <div className="text-xs font-bold text-amber-400 mb-4 uppercase tracking-wider">Scenariusz B</div>
-                        <DualInput label="Podwyżka B" value={increaseB} onChange={setIncreaseB} min={0} max={100} step={5} unit="%" color="accent-amber-500"/>
-                        <DualInput label="Churn B" value={churnB} onChange={setChurnB} min={0} max={50} step={5} unit="%" color="accent-red-500"/>
+                        <DualInput label="Podwyżka B" value={increaseB} onChange={setIncreaseB} min={0} max={100} step={1} unit="%" color="accent-amber-500"/>
+                        <DualInput label="Churn B" value={churnB} onChange={setChurnB} min={0} max={50} step={1} unit="%" color="accent-red-500"/>
                     </div>
                  </div>
                ) : (
                  <div className="space-y-4">
                     <p className="text-xs text-slate-400 mb-4">Podaj ile chcesz zarabiać i ilu klientów możesz stracić, a policzymy o ile musisz podnieść ceny.</p>
                     <DualInput label="Cel Przychodu (Mies.)" value={targetRevenue} onChange={setTargetRevenue} min={5000} max={100000} step={500} unit="PLN" />
-                    <DualInput label="Maksymalny Churn" value={maxChurn} onChange={setMaxChurn} min={0} max={50} step={5} unit="%" color="accent-red-500" />
+                    <DualInput label="Maksymalny Churn" value={maxChurn} onChange={setMaxChurn} min={0} max={50} step={1} unit="%" color="accent-red-500" />
                  </div>
                )}
             </div>
@@ -333,32 +455,33 @@ const CalculatorTab = () => {
              <div className="p-6 md:p-8">
                 {/* --- BASIC MODE RESULTS --- */}
                 {mode === 'basic' && (
-                    <BasicResultsView current={scenarioA.currentRevenue} scenario={scenarioA} verdict={getVerdict(scenarioA.revenueDiff)} />
+                    <BasicResultsView 
+                        current={showCosts ? scenarioA.currentProfit : scenarioA.currentRevenue} 
+                        scenario={scenarioA} 
+                        verdict={getVerdict(scenarioA.financialDiff)}
+                        showCosts={showCosts} 
+                    />
                 )}
 
                 {/* --- PRO MODE: COMPARE --- */}
                 {mode === 'pro' && proModeType === 'compare' && (
-                    <div className="grid grid-cols-2 gap-4 md:gap-8">
-                        <div>
-                            <div className="text-center mb-4 pb-2 border-b border-blue-500/30">
-                                <span className="text-blue-400 font-bold tracking-widest text-sm">SCENARIUSZ A</span>
-                            </div>
-                            <MiniResultCard scenario={scenarioA} />
-                        </div>
-                        <div>
-                            <div className="text-center mb-4 pb-2 border-b border-amber-500/30">
-                                <span className="text-amber-500 font-bold tracking-widest text-sm">SCENARIUSZ B</span>
-                            </div>
-                            <MiniResultCard scenario={scenarioB} />
-                        </div>
+                    <>
+                    <div className="mb-8">
+                        <ComparisonChart scenarioA={scenarioA} scenarioB={scenarioB} showCosts={showCosts} />
+                        
                         <div className="col-span-2 mt-4 bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                            <p className="text-slate-400 text-xs uppercase mb-1">Różnica między strategiami</p>
-                            <p className={`text-xl font-bold ${scenarioB.newRevenue - scenarioA.newRevenue >= 0 ? 'text-amber-400' : 'text-blue-400'}`}>
-                                {(scenarioB.newRevenue - scenarioA.newRevenue).toLocaleString()} PLN
+                            <p className="text-slate-400 text-xs uppercase mb-1">
+                                Różnica w {showCosts ? "Zysku (Dochodzie)" : "Przychodzie"}
                             </p>
-                            <p className="text-xs text-slate-500">na korzyść {scenarioB.newRevenue >= scenarioA.newRevenue ? 'Scenariusza B' : 'Scenariusza A'}</p>
+                            <p className={`text-xl font-bold ${scenarioB.financialDiff - scenarioA.financialDiff >= 0 ? 'text-amber-400' : 'text-blue-400'}`}>
+                                {(showCosts ? (scenarioB.newProfit - scenarioA.newProfit) : (scenarioB.newRevenue - scenarioA.newRevenue)).toLocaleString()} PLN
+                            </p>
+                            <p className="text-xs text-slate-500">
+                                na korzyść {scenarioB.financialDiff >= scenarioA.financialDiff ? 'Scenariusza B' : 'Scenariusza A'}
+                            </p>
                         </div>
                     </div>
+                    </>
                 )}
 
                 {/* --- PRO MODE: REVERSE --- */}
@@ -367,7 +490,7 @@ const CalculatorTab = () => {
                         <Target className="w-12 h-12 text-amber-500 mx-auto mb-4" />
                         <h3 className="text-slate-400 text-sm uppercase tracking-wider mb-2">Wymagana Podwyżka</h3>
                         <div className="text-5xl md:text-6xl font-black text-white mb-2">
-                            {reverseResult.requiredIncrease > 0 ? reverseResult.requiredIncrease : 0}%
+                            {reverseResult.requiredIncrease > 0 ? reverseResult.requiredIncrease.toFixed(1) : 0}%
                         </div>
                         <p className="text-xl text-amber-400 font-bold mb-8">
                             Nowa stawka: {reverseResult.requiredPrice > 0 ? reverseResult.requiredPrice : 0} PLN
@@ -375,7 +498,7 @@ const CalculatorTab = () => {
                         
                         <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 text-left max-w-md mx-auto">
                             <p className="text-sm text-slate-300 leading-relaxed">
-                                Aby osiągnąć cel <strong className="text-white">{targetRevenue.toLocaleString()} PLN</strong> przy odejściu <strong className="text-red-400">{maxChurn}%</strong> klientów, musisz podnieść cenę o min. <strong>{reverseResult.requiredIncrease}%</strong>.
+                                Aby osiągnąć cel <strong className="text-white">{targetRevenue.toLocaleString()} PLN</strong> przy odejściu <strong className="text-red-400">{maxChurn}%</strong> klientów, musisz podnieść cenę o min. <strong>{reverseResult.requiredIncrease.toFixed(1)}%</strong>.
                             </p>
                         </div>
                     </div>
@@ -386,7 +509,7 @@ const CalculatorTab = () => {
              <div className="bg-slate-950 px-6 py-4 border-t border-slate-800 flex items-start gap-3">
                 <Info className="w-4 h-4 text-slate-600 mt-0.5 shrink-0" />
                 <p className="text-[10px] md:text-xs text-slate-500 leading-relaxed">
-                    <strong>Założenia modelu:</strong> 1 trening = 1 godzina pracy. Model zakłada, że liczba treningów na klienta pozostaje bez zmian po podwyżce (chyba że klient odejdzie całkowicie). Wyniki nie uwzględniają podatków ani kosztów stałych.
+                    <strong>Założenia modelu:</strong> 1 trening = 1 godzina pracy. Model zakłada, że liczba treningów na klienta pozostaje bez zmian po podwyżce (chyba że klient odejdzie całkowicie). Wyniki {showCosts ? "uwzględniają" : "nie uwzględniają"} kosztów stałych/zmiennych.
                 </p>
              </div>
           </div>
@@ -399,27 +522,32 @@ const CalculatorTab = () => {
 
 // --- SUB-COMPONENTS FOR RESULTS ---
 
-const BasicResultsView = ({ current, scenario, verdict }) => (
+const BasicResultsView = ({ current, scenario, verdict, showCosts }) => (
     <>
         <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Obecny przychód (mies.)</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                    Obecny {showCosts ? "Zysk (Dochód)" : "Przychód"}
+                </p>
                 <p className="text-2xl font-bold text-slate-300">{current.toLocaleString()} PLN</p>
-                <p className="text-xs text-slate-600 mt-1">{scenario.currentHourlyRate.toFixed(0)} PLN/h</p>
+                <p className="text-xs text-slate-600 mt-1">
+                    {(showCosts ? scenario.currentEffectiveHourlyRate : scenario.currentHourlyRate).toFixed(0)} PLN/h (na rękę)
+                </p>
             </div>
             <div className={`bg-slate-950/50 p-4 rounded-xl border ${verdict.border} relative overflow-hidden`}>
                 <div className={`absolute top-0 right-0 p-1 px-2 text-[10px] font-bold ${verdict.bg} ${verdict.color} rounded-bl-lg`}>
-                    {scenario.revenueChangePercent > 0 ? '+' : ''}{scenario.revenueChangePercent.toFixed(1)}%
+                    {scenario.financialChangePercent > 0 ? '+' : ''}{scenario.financialChangePercent.toFixed(1)}%
                 </div>
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Przychód po zmianie</p>
-                <p className={`text-2xl font-bold ${scenario.revenueDiff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {scenario.newRevenue.toLocaleString()} PLN
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">
+                    {showCosts ? "Zysk" : "Przychód"} po zmianie
+                </p>
+                <p className={`text-2xl font-bold ${scenario.financialDiff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {(showCosts ? scenario.newProfit : scenario.newRevenue).toLocaleString()} PLN
                 </p>
                 <p className="text-xs text-slate-500 mt-1 flex gap-2">
-                    <span>{scenario.newHourlyRate.toFixed(0)} PLN/h</span>
-                    {scenario.newHourlyRate > scenario.currentHourlyRate && (
-                        <span className="text-emerald-500/80 font-bold text-[10px] self-center">UPGRADE</span>
-                    )}
+                    <span>
+                        {(showCosts ? scenario.newEffectiveHourlyRate : scenario.newHourlyRate).toFixed(0)} PLN/h (na rękę)
+                    </span>
                 </p>
             </div>
         </div>
@@ -427,16 +555,18 @@ const BasicResultsView = ({ current, scenario, verdict }) => (
         <div className="space-y-4 mb-8">
              <div className="flex items-center justify-between bg-slate-800/50 p-4 rounded-lg border border-slate-700/50">
                 <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-lg ${scenario.revenueDiff >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                    <div className={`p-3 rounded-lg ${scenario.financialDiff >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
                         <Wallet className="w-6 h-6" />
                     </div>
                     <div>
-                        <p className="text-sm font-bold text-slate-200">Różnica Finansowa</p>
+                        <p className="text-sm font-bold text-slate-200">
+                            Różnica w {showCosts ? "Kieszeni (Zysk)" : "Przychodzie"}
+                        </p>
                         <p className="text-xs text-slate-400">Ile więcej/mniej zarobisz miesięcznie</p>
                     </div>
                 </div>
-                <span className={`text-2xl font-black ${scenario.revenueDiff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {scenario.revenueDiff > 0 ? '+' : ''}{scenario.revenueDiff.toLocaleString()} PLN
+                <span className={`text-2xl font-black ${scenario.financialDiff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {scenario.financialDiff > 0 ? '+' : ''}{scenario.financialDiff.toLocaleString()} PLN
                 </span>
              </div>
 
@@ -447,7 +577,9 @@ const BasicResultsView = ({ current, scenario, verdict }) => (
                     </div>
                     <div>
                         <p className="text-sm font-bold text-slate-200">Odzyskany Czas</p>
-                        <p className="text-xs text-slate-400">Ekwiwalent: <span className="text-blue-300 font-bold">{Math.round(scenario.timeValue)} PLN</span> potencjału</p>
+                        <p className="text-xs text-slate-400">
+                            Ekwiwalent: <span className="text-blue-300 font-bold">{Math.round(scenario.timeValue)} PLN</span> marży
+                        </p>
                     </div>
                 </div>
                 <div className="text-right">
@@ -460,42 +592,29 @@ const BasicResultsView = ({ current, scenario, verdict }) => (
 
         <div className={`p-4 rounded-xl border ${verdict.border} ${verdict.bg}`}>
              <h3 className={`font-bold mb-2 flex items-center gap-2 ${verdict.color}`}>
-                {scenario.revenueDiff >= 0 ? <CheckCircle className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
+                {scenario.financialDiff >= 0 ? <CheckCircle className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
                 WERDYKT: {verdict.text}
              </h3>
              <p className="text-sm text-slate-300 leading-relaxed">
-                {scenario.revenueDiff > 50 
-                  ? `Przy podwyżce o ${((scenario.newPrice/150 - 1)*100).toFixed(0)}% (do ${scenario.newPrice} PLN) możesz stracić ok. ${scenario.clientsLost} klientów, a i tak zarabiasz ${scenario.revenueDiff} PLN więcej. Do tego masz ${scenario.sessionsLost}h wolnego na marketing.`
-                  : scenario.revenueDiff < -50
-                  ? `Uwaga! Przy takim poziomie odejść (${scenario.clientsLost} os.) podwyżka Ci się nie opłaca - tracisz ${Math.abs(scenario.revenueDiff)} PLN. Musisz zmniejszyć churn (lepsza komunikacja) lub podnieść cenę bardziej.`
-                  : "Finansowo wychodzisz na zero. Zyskujesz tylko wolny czas. Jeśli Twoim celem jest zarabiać więcej, musisz albo agresywniej podnieść cenę, albo lepiej zadbać o retencję klientów."
+                {scenario.financialDiff > 50 
+                  ? `Przy podwyżce o ${((scenario.newPrice/150 - 1)*100).toFixed(0)}% (do ${scenario.newPrice} PLN) możesz stracić ok. ${scenario.clientsLost} klientów, a i tak zarabiasz ${scenario.financialDiff.toLocaleString()} PLN więcej. Do tego masz ${scenario.sessionsLost}h wolnego.`
+                  : scenario.financialDiff < -50
+                  ? `Uwaga! Przy takim poziomie odejść (${scenario.clientsLost} os.) podwyżka Ci się nie opłaca - tracisz ${Math.abs(scenario.financialDiff).toLocaleString()} PLN. Musisz zmniejszyć churn (lepsza komunikacja) lub podnieść cenę bardziej.`
+                  : "Finansowo wychodzisz praktycznie na zero. Głównym zyskiem jest tutaj wolny czas."
                 }
+                <br/><br/>
+                <span className="text-xs text-slate-400 block border-t border-slate-700/50 pt-2 mt-2">
+                    <strong className="text-white">Break-Even Point (BEP):</strong> 
+                    Aby wyjść finansowo na zero przy tej podwyżce, musiałoby odejść aż 
+                    <strong className="text-white"> {scenario.breakEvenClients} klientów</strong>.
+                    Dopóki odejdzie mniej, jesteś na plusie.
+                </span>
              </p>
         </div>
     </>
 );
 
-const MiniResultCard = ({ scenario }) => (
-    <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 text-center">
-        <p className="text-2xl font-bold text-white mb-1">{scenario.newRevenue.toLocaleString()} PLN</p>
-        <p className={`text-xs font-bold mb-3 ${scenario.revenueDiff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-           {scenario.revenueDiff > 0 ? '+' : ''}{scenario.revenueDiff} PLN
-        </p>
-        <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500 border-t border-slate-800 pt-3">
-            <div>
-                <span className="block text-slate-400">Stawka</span>
-                {scenario.newPrice} PLN
-            </div>
-            <div>
-                <span className="block text-slate-400">Strata</span>
-                -{scenario.clientsLost} os.
-            </div>
-        </div>
-    </div>
-);
-
-// --- OTHER TABS (Styling Updates) ---
-
+// --- OTHER TABS (Checklist, Strategy, Scripts) remain same but imported to keep single file structure ---
 const ChecklistTab = () => {
     const [checkedItems, setCheckedItems] = useState({});
     const items = [

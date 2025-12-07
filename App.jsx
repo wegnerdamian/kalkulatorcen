@@ -91,13 +91,13 @@ const calculateChecklistScore = (inputs) => {
   const { capacity, conversion, costIncrease, goldenWindow, signals } = inputs;
   const signalsCount = Object.values(signals).filter(Boolean).length;
   
-  let score = signalsCount; // 1 pkt za każdy sygnał
+  let score = signalsCount; 
   if (capacity >= 85) score += 2;
-  if (conversion >= 80) score += 2; // Wysoka konwersja = za tanio
+  if (conversion >= 80) score += 2; 
   if (costIncrease) score += 1;
   if (['january', 'september', 'yearEnd'].includes(goldenWindow)) score += 1;
 
-  let status = { label: "NISKI PRIORYTET", color: "text-slate-400", bg: "bg-slate-800", desc: "Twoja sytuacja jest stabilna. Skup się na marketingu." };
+  let status = { label: "NISKI PRIORYTET", color: "text-neutral-400", bg: "bg-neutral-800", desc: "Twoja sytuacja jest stabilna. Skup się na marketingu." };
   
   if (score >= 7) {
     status = { label: "KONIECZNIE PODNIEŚ CENY!", color: "text-emerald-400", bg: "bg-emerald-500/10", desc: "Twoje wyniki (obłożenie/sprzedaż) krzyczą, że jesteś za tani. Tracisz pieniądze każdego dnia." };
@@ -130,12 +130,10 @@ const runSimulation = (inputs) => {
   const newCosts = (Number(inputs.fixedCosts) || 0) + (newSessions * (Number(inputs.varCost) || 0));
   const newProfit = newRevenue - newCosts;
 
-  // Suggested Strategy
   let suggestedStrategy = 'inflation';
   if (inputs.increase >= 30) suggestedStrategy = 'reposition';
   else if (inputs.increase >= 10) suggestedStrategy = 'quality';
 
-  // Absolute Check
   const isProfitable = inputs.showCosts ? (newProfit > currentProfit && newProfit > 0) : (newRevenue > currentRevenue);
   const marginWarning = inputs.showCosts && (newProfit <= 0);
 
@@ -157,21 +155,21 @@ const formatCurrency = (val) => new Intl.NumberFormat('pl-PL', { style: 'currenc
 
 const Tooltip = ({ text }) => (
   <div className="group relative inline-block ml-1 cursor-help">
-    <HelpCircle className="w-3.5 h-3.5 text-slate-500 hover:text-amber-500 transition-colors" />
-    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-slate-800 border border-slate-700 rounded shadow-xl text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-tight">
+    <HelpCircle className="w-3.5 h-3.5 text-neutral-500 hover:text-amber-500 transition-colors" />
+    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-neutral-800 border border-neutral-700 rounded shadow-xl text-[10px] text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-tight">
       {text}
     </div>
   </div>
 );
 
 const SmartInput = ({ label, value, onChange, min, max, step, unit, hint, tooltip, type = "number", markers }) => (
-  <div className="mb-5">
+  <div className="mb-8 relative"> 
     <div className="flex justify-between items-end mb-2">
-      <label className="text-sm font-medium text-slate-300 flex items-center">
+      <label className="text-sm font-medium text-neutral-300 flex items-center">
         {label}
         {tooltip && <Tooltip text={tooltip} />}
       </label>
-      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded px-2 focus-within:border-amber-500 transition-colors">
+      <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-700 rounded px-2 focus-within:border-amber-500 transition-colors">
         <input
           type={type}
           value={value}
@@ -179,41 +177,44 @@ const SmartInput = ({ label, value, onChange, min, max, step, unit, hint, toolti
           className="w-20 bg-transparent py-1 text-right text-sm font-bold text-white focus:outline-none"
           step={step}
         />
-        {unit && <span className="text-[10px] text-slate-500 select-none">{unit}</span>}
+        {unit && <span className="text-[10px] text-neutral-500 select-none">{unit}</span>}
       </div>
     </div>
-    {hint && <p className="text-[10px] text-slate-500 mb-2">{hint}</p>}
-    <div className="relative h-5 flex items-center">
+    {hint && <p className="text-[10px] text-neutral-500 mb-2">{hint}</p>}
+    <div className="relative h-6 flex items-center mt-2">
         <input 
           type="range" min={min} max={max} step={step} value={value} 
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500 hover:accent-amber-400 z-10 relative"
+          className="w-full h-2 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-amber-500 hover:accent-amber-400 z-10 relative"
         />
         {markers && markers.map((m, idx) => (
-            <div key={idx} className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0" style={{ left: `${(m.at / max) * 100}%` }}>
-                <div className={`w-0.5 h-3 ${m.color} mb-4`}></div>
-                <span className={`text-[8px] font-bold uppercase whitespace-nowrap absolute -top-3 ${m.textColor || 'text-slate-500'}`}>{m.label}</span>
+            <div key={idx} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none z-0" style={{ left: `${(m.at / max) * 100}%` }}>
+                <div className={`w-0.5 h-4 ${m.color} rounded-full`}></div>
+                <span className={`absolute top-5 text-[9px] font-bold uppercase whitespace-nowrap ${m.textColor || 'text-neutral-500'}`}>{m.label}</span>
             </div>
         ))}
     </div>
   </div>
 );
 
+// FIX: NavButton teraz zawsze pokazuje tekst i ma lepszy styl "tabletki"
 const NavButton = ({ id, label, icon: Icon, activeTab, setActiveTab }) => (
   <button
     onClick={() => setActiveTab(id)}
-    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all whitespace-nowrap ${
-      activeTab === id ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+    className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
+      activeTab === id 
+        ? 'bg-amber-600 text-white border-amber-600 shadow-lg shadow-amber-900/20' 
+        : 'text-neutral-400 bg-neutral-900 border-neutral-800 hover:bg-neutral-800'
     }`}
   >
     <Icon className="w-4 h-4" />
-    <span className="hidden md:inline">{label}</span>
+    <span>{label}</span>
   </button>
 );
 
 // --- SEKCJA 1: DIAGNOZA (Checklista) ---
 
-const DiagnosisTab = ({ state, setState }) => {
+const DiagnosisTab = ({ state, setState, onNext }) => {
   const result = calculateChecklistScore(state);
   const toggleSignal = (idx) => setState(p => ({...p, signals: {...p.signals, [idx]: !p.signals[idx]}}));
   
@@ -233,34 +234,34 @@ const DiagnosisTab = ({ state, setState }) => {
   return (
     <div className="animate-in fade-in space-y-8">
       <div className="grid lg:grid-cols-2 gap-8">
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+        <div className="bg-neutral-900 p-6 rounded-2xl border border-neutral-800">
            <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-6">1. Twarde Dane</h3>
            <SmartInput 
-             label="Obłożenie kalendarza (Capacity)" unit="%" min={0} max={100} value={state.capacity} onChange={v => setState({...state, capacity: v})}
+             label="Obłożenie kalendarza" unit="%" min={0} max={100} value={state.capacity} onChange={v => setState({...state, capacity: v})}
              tooltip="Ile % Twoich godzin jest zajętych? >85% to sygnał alarmowy."
            />
            <SmartInput 
-             label="Wskaźnik Konwersji Sprzedaży" unit="%" min={0} max={100} value={state.conversion} onChange={v => setState({...state, conversion: v})}
+             label="Konwersja sprzedaży" unit="%" min={0} max={100} value={state.conversion} onChange={v => setState({...state, conversion: v})}
              tooltip="Ile osób decyduje się na współpracę? >80% bez negocjacji = jesteś za tani."
            />
-           <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => setState({...state, costIncrease: !state.costIncrease})}>
-              <div className={`w-5 h-5 rounded border flex items-center justify-center ${state.costIncrease ? 'bg-amber-500 border-amber-500' : 'border-slate-600'}`}>
-                 {state.costIncrease && <CheckCircle className="w-3.5 h-3.5 text-slate-900" />}
+           <div className="flex items-center gap-3 p-3 bg-neutral-800/50 rounded-lg cursor-pointer hover:bg-neutral-800 transition-colors" onClick={() => setState({...state, costIncrease: !state.costIncrease})}>
+              <div className={`w-5 h-5 rounded border flex items-center justify-center ${state.costIncrease ? 'bg-amber-500 border-amber-500' : 'border-neutral-600'}`}>
+                 {state.costIncrease && <CheckCircle className="w-3.5 h-3.5 text-neutral-900" />}
               </div>
-              <span className="text-sm text-slate-300">Moje koszty wzrosły w ostatnich 12 msc</span>
+              <span className="text-sm text-neutral-300">Moje koszty wzrosły w ostatnich 12 msc</span>
            </div>
         </div>
 
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+        <div className="bg-neutral-900 p-6 rounded-2xl border border-neutral-800">
            <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-6">2. Sygnały Ostrzegawcze</h3>
            <div className="space-y-2">
               {signals.map((s, idx) => (
-                 <div key={idx} onClick={() => toggleSignal(idx)} className={`p-3 rounded-lg border cursor-pointer flex items-center gap-3 transition-all ${state.signals[idx] ? 'bg-amber-500/10 border-amber-500/50' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${state.signals[idx] ? 'bg-amber-500 border-amber-500' : 'border-slate-600'}`}>
-                       {state.signals[idx] && <CheckCircle className="w-3.5 h-3.5 text-slate-900" />}
+                 <div key={idx} onClick={() => toggleSignal(idx)} className={`p-3 rounded-lg border cursor-pointer flex items-center gap-3 transition-all ${state.signals[idx] ? 'bg-amber-500/10 border-amber-500/50' : 'bg-neutral-950 border-neutral-800 hover:border-neutral-700'}`}>
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${state.signals[idx] ? 'bg-amber-500 border-amber-500' : 'border-neutral-600'}`}>
+                       {state.signals[idx] && <CheckCircle className="w-3.5 h-3.5 text-neutral-900" />}
                     </div>
                     <div className="flex-1">
-                       <p className={`text-xs font-bold ${state.signals[idx] ? 'text-white' : 'text-slate-400'}`}>{s.txt}</p>
+                       <p className={`text-xs font-bold ${state.signals[idx] ? 'text-white' : 'text-neutral-400'}`}>{s.txt}</p>
                     </div>
                     <Tooltip text={s.tip} />
                  </div>
@@ -273,7 +274,15 @@ const DiagnosisTab = ({ state, setState }) => {
          <div className="relative z-10">
             <h2 className="text-4xl font-black text-white mb-2">{result.score} pkt</h2>
             <h3 className={`text-xl font-bold uppercase tracking-widest mb-2 ${result.status.color}`}>{result.status.label}</h3>
-            <p className="text-slate-300 text-sm max-w-lg mx-auto">{result.status.desc}</p>
+            <p className="text-neutral-300 text-sm max-w-lg mx-auto mb-6">{result.status.desc}</p>
+            
+            {/* Przycisk przejścia dalej (FLOW) */}
+            <button 
+              onClick={onNext}
+              className="bg-white text-neutral-900 px-8 py-3 rounded-xl font-bold text-sm hover:bg-neutral-200 transition-colors inline-flex items-center gap-2 shadow-lg"
+            >
+              Przejdź do Liczb <ArrowRight className="w-4 h-4"/>
+            </button>
          </div>
       </div>
     </div>
@@ -282,7 +291,7 @@ const DiagnosisTab = ({ state, setState }) => {
 
 // --- SEKCJA 2: SYMULATOR ---
 
-const SimulatorTab = ({ state, setState, profession }) => {
+const SimulatorTab = ({ state, setState, profession, onNext }) => {
   const pConf = PROFESSIONS[profession];
   const res = runSimulation(state);
   
@@ -304,18 +313,18 @@ const SimulatorTab = ({ state, setState, profession }) => {
     <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in">
        {/* Parametry */}
        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+          <div className="bg-neutral-900 p-6 rounded-2xl border border-neutral-800">
              <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest">Parametry Biznesowe</h3>
-                <button onClick={saveResult} className="text-xs text-slate-500 hover:text-white flex items-center gap-1"><Save className="w-3 h-3"/> Zapisz</button>
+                <button onClick={saveResult} className="text-xs text-neutral-500 hover:text-white flex items-center gap-1"><Save className="w-3 h-3"/> Zapisz</button>
              </div>
              
              <SmartInput label={`Liczba ${pConf.unitClient}`} unit="os." value={state.clients} onChange={v => setState({...state, clients: v})} min={1} max={100} />
              <SmartInput label={`Średnio ${pConf.unitSession} na osobę`} unit="szt." value={state.sessions} onChange={v => setState({...state, sessions: v})} min={1} max={30} />
              <SmartInput label={pConf.priceLabel} unit="PLN" value={state.price} onChange={v => setState({...state, price: v})} min={10} max={1000} step={5} />
              
-             <div className="py-4 border-t border-slate-800">
-                <button onClick={() => setState({...state, showCosts: !state.showCosts})} className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white mb-4">
+             <div className="py-4 border-t border-neutral-800">
+                <button onClick={() => setState({...state, showCosts: !state.showCosts})} className="flex items-center gap-2 text-xs font-bold text-neutral-400 hover:text-white mb-4">
                    <Coins className="w-4 h-4"/> {state.showCosts ? "Ukryj Koszty" : "Uwzględnij Koszty (Analiza Marży)"}
                 </button>
                 {state.showCosts && (
@@ -326,7 +335,7 @@ const SimulatorTab = ({ state, setState, profession }) => {
                 )}
              </div>
 
-             <div className="h-px bg-slate-800 mb-6"></div>
+             <div className="h-px bg-neutral-800 mb-6"></div>
              
              <SmartInput 
                 label="Planowana podwyżka" unit="%" value={state.increase} onChange={v => setState({...state, increase: v})} min={0} max={100} 
@@ -334,7 +343,7 @@ const SimulatorTab = ({ state, setState, profession }) => {
              />
              <SmartInput 
                 label="Szacowana utrata klientów" unit="%" value={state.churn} onChange={v => setState({...state, churn: v})} min={0} max={100}
-                markers={[{at: 10, label: 'ZDROWY', color: 'bg-emerald-500'}, {at: 20, label: 'RYZYKO', color: 'bg-red-500'}]}
+                markers={[{at: 10, label: 'ZDROWY', color: 'bg-emerald-500', textColor: 'text-emerald-500'}, {at: 20, label: 'RYZYKO', color: 'bg-red-500', textColor: 'text-red-500'}]}
                 tooltip="Zdrowy churn po podwyżce to 10-15%. Oznacza naturalną wymianę klientów na lepiej płacących."
              />
           </div>
@@ -342,42 +351,54 @@ const SimulatorTab = ({ state, setState, profession }) => {
 
        {/* Wyniki */}
        <div className="lg:col-span-7 space-y-6">
-          <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl relative overflow-hidden">
-             {/* Sugestia Strategii */}
-             <div className="absolute top-4 right-4 bg-slate-800 text-slate-400 text-[10px] uppercase font-bold px-2 py-1 rounded border border-slate-700">
-                Sugerowana: {STRATEGIES[res.suggestedStrategy].title}
-             </div>
+          <div className="bg-neutral-900 p-8 rounded-2xl border border-neutral-800 shadow-xl relative overflow-hidden flex flex-col justify-between h-full">
+             <div>
+                {/* Sugestia Strategii */}
+                <div className="absolute top-4 right-4 bg-neutral-800 text-neutral-400 text-[10px] uppercase font-bold px-2 py-1 rounded border border-neutral-700">
+                    Sugerowana: {STRATEGIES[res.suggestedStrategy].title}
+                </div>
 
-             <div className="flex flex-col md:flex-row gap-8 mb-8">
-                <div>
-                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{state.showCosts ? "ZYSK" : "PRZYCHÓD"} MIESIĘCZNY</p>
-                   <div className="flex items-baseline gap-3">
-                      <h2 className={`text-5xl font-black ${res.diff >= 0 ? 'text-white' : 'text-red-400'}`}>{formatCurrency(state.showCosts ? res.newProfit : res.newRevenue)}</h2>
-                      <span className={`text-sm font-bold px-2 py-1 rounded ${statusColor} ${statusBg}`}>
-                         {res.diff > 0 ? '+' : ''}{formatCurrency(res.diff)}
-                      </span>
-                   </div>
-                   <p className="text-xs text-slate-500 mt-2">Poprzednio: {formatCurrency(state.showCosts ? res.currentProfit : res.currentRevenue)}</p>
+                <div className="flex flex-col md:flex-row gap-8 mb-8">
+                    <div>
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-1">{state.showCosts ? "ZYSK" : "PRZYCHÓD"} MIESIĘCZNY</p>
+                    <div className="flex items-baseline gap-3">
+                        <h2 className={`text-5xl font-black ${res.diff >= 0 ? 'text-white' : 'text-red-400'}`}>{formatCurrency(state.showCosts ? res.newProfit : res.newRevenue)}</h2>
+                        <span className={`text-sm font-bold px-2 py-1 rounded ${statusColor} ${statusBg}`}>
+                            {res.diff > 0 ? '+' : ''}{formatCurrency(res.diff)}
+                        </span>
+                    </div>
+                    <p className="text-xs text-neutral-500 mt-2">Poprzednio: {formatCurrency(state.showCosts ? res.currentProfit : res.currentRevenue)}</p>
+                    </div>
+                </div>
+
+                {/* Karta Werdyktu */}
+                <div className={`p-6 rounded-xl border ${res.isProfitable ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
+                    <h3 className={`font-bold mb-2 flex items-center gap-2 ${statusColor}`}>
+                    {res.isProfitable ? <CheckCircle className="w-5 h-5"/> : <ShieldAlert className="w-5 h-5"/>}
+                    {res.isProfitable ? "OPŁACALNE" : "NIEOPŁACALNE"}
+                    </h3>
+                    <p className="text-sm text-neutral-300 leading-relaxed">
+                    {res.isProfitable 
+                        ? `Przy podwyżce o ${state.increase}% zarabiasz więcej, nawet jeśli odejdzie ${res.clientsLost.toFixed(1)} osób. Masz więcej czasu i pieniędzy.` 
+                        : `Przy założonym churnie (${state.churn}%) tracisz pieniądze. Musisz albo zmniejszyć churn (lepsza oferta), albo zwiększyć podwyżkę.`}
+                    </p>
+                    {res.marginWarning && (
+                        <div className="mt-4 p-3 bg-red-900/20 border border-red-500/30 rounded text-xs text-red-300 flex gap-2 items-start">
+                            <AlertOctagon className="w-4 h-4 shrink-0 mt-0.5"/>
+                            <strong>Uwaga:</strong> Mimo wzrostu, Twoja marża jest nadal ujemna lub zerowa. Dokładasz do interesu. Podnieś cenę drastycznie lub tnij koszty.
+                        </div>
+                    )}
                 </div>
              </div>
 
-             {/* Karta Werdyktu */}
-             <div className={`p-6 rounded-xl border ${res.isProfitable ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
-                <h3 className={`font-bold mb-2 flex items-center gap-2 ${statusColor}`}>
-                   {res.isProfitable ? <CheckCircle className="w-5 h-5"/> : <ShieldAlert className="w-5 h-5"/>}
-                   {res.isProfitable ? "OPŁACALNE" : "NIEOPŁACALNE"}
-                </h3>
-                <p className="text-sm text-slate-300 leading-relaxed">
-                   {res.isProfitable 
-                     ? `Przy podwyżce o ${state.increase}% zarabiasz więcej, nawet jeśli odejdzie ${res.clientsLost.toFixed(1)} osób. Masz więcej czasu i pieniędzy.` 
-                     : `Przy założonym churnie (${state.churn}%) tracisz pieniądze. Musisz albo zmniejszyć churn (lepsza oferta), albo zwiększyć podwyżkę.`}
-                </p>
-                {res.marginWarning && (
-                    <div className="mt-4 p-3 bg-red-900/20 border border-red-500/30 rounded text-xs text-red-300 flex gap-2 items-start">
-                        <AlertOctagon className="w-4 h-4 shrink-0 mt-0.5"/>
-                        <strong>Uwaga:</strong> Mimo wzrostu, Twoja marża jest nadal ujemna lub zerowa. Dokładasz do interesu. Podnieś cenę drastycznie lub tnij koszty.
-                    </div>
-                )}
+             {/* Przycisk FLOW */}
+             <div className="mt-8 flex justify-end">
+                <button 
+                    onClick={onNext}
+                    className="bg-white text-neutral-900 px-8 py-3 rounded-xl font-bold text-sm hover:bg-neutral-200 transition-colors flex items-center gap-2 shadow-lg"
+                >
+                    Przejdź do Wdrożenia <ArrowRight className="w-4 h-4"/>
+                </button>
              </div>
           </div>
        </div>
@@ -398,7 +419,6 @@ const ActionTab = ({ simState, profession }) => {
   const pConf = PROFESSIONS[profession];
   const newPrice = Math.ceil(simState.price * (1 + simState.increase/100));
 
-  // Generowanie wiadomości
   useEffect(() => {
     const stackItems = pConf.stack.filter(i => stack[i.id]).map(i => i.label).join(', ');
     const investmentText = stackItems ? `Wprowadzam nowe elementy, takie jak: ${stackItems}, aby zapewnić Ci jeszcze lepsze efekty.` : `Dzięki tej zmianie mogę dalej inwestować w jakość naszych ${pConf.sessionName}ów.`;
@@ -415,31 +435,31 @@ const ActionTab = ({ simState, profession }) => {
        {/* Nawigacja Kroków */}
        <div className="lg:col-span-3 space-y-2">
           {['1. Strategia', '2. Value Stack', '3. Komunikacja', '4. Plan Działań'].map((l, i) => (
-             <button key={i} onClick={() => setStep(i+1)} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all ${step === i+1 ? 'bg-amber-600 text-white shadow-lg' : 'bg-slate-900 text-slate-400 hover:bg-slate-800'}`}>
+             <button key={i} onClick={() => setStep(i+1)} className={`w-full text-left px-4 py-4 rounded-xl text-sm font-bold transition-all ${step === i+1 ? 'bg-red-700 text-white shadow-lg' : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800'}`}>
                 {l}
              </button>
           ))}
        </div>
 
        {/* Treść Kroku */}
-       <div className="lg:col-span-9 bg-slate-900 p-8 rounded-2xl border border-slate-800 min-h-[500px]">
+       <div className="lg:col-span-9 bg-neutral-900 p-8 rounded-2xl border border-neutral-800 min-h-[500px]">
           {step === 1 && (
              <div className="space-y-6">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2"><Target className="text-amber-500"/> Wybierz Strategię</h3>
                 <div className="grid md:grid-cols-2 gap-4">
                    {Object.entries(STRATEGIES).map(([k, s]) => (
-                      <div key={k} onClick={() => setSelectedStrategy(k)} className={`p-5 rounded-xl border cursor-pointer transition-all ${selectedStrategy === k ? 'border-amber-500 bg-amber-500/10' : 'border-slate-700 hover:bg-slate-800'}`}>
+                      <div key={k} onClick={() => setSelectedStrategy(k)} className={`p-5 rounded-xl border cursor-pointer transition-all ${selectedStrategy === k ? 'border-amber-500 bg-amber-500/10' : 'border-neutral-700 hover:bg-neutral-800'}`}>
                          <div className="flex justify-between mb-2">
                             <span className="font-bold text-white">{s.title}</span>
-                            <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">{s.range}</span>
+                            <span className="text-xs bg-neutral-800 px-2 py-1 rounded text-neutral-300">{s.range}</span>
                          </div>
-                         <p className="text-xs text-slate-400 mb-4">{s.desc}</p>
+                         <p className="text-xs text-neutral-400 mb-4">{s.desc}</p>
                          <div className="text-[10px] text-emerald-400 flex gap-2"><CheckCircle className="w-3 h-3"/> {s.pros[0]}</div>
                       </div>
                    ))}
                 </div>
                 <div className="flex justify-end mt-4">
-                    <button onClick={() => setStep(2)} className="bg-white text-slate-900 px-6 py-2 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors flex items-center gap-2">Dalej <ArrowRight className="w-4 h-4"/></button>
+                    <button onClick={() => setStep(2)} className="bg-red-700 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-red-600 transition-colors flex items-center gap-2">Dalej <ArrowRight className="w-4 h-4"/></button>
                 </div>
              </div>
           )}
@@ -447,23 +467,23 @@ const ActionTab = ({ simState, profession }) => {
           {step === 2 && (
              <div className="space-y-6">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2"><Layers className="text-amber-500"/> Zbuduj Value Stack</h3>
-                <p className="text-slate-400 text-sm">Zaznacz, co dodasz do oferty, aby uzasadnić nową cenę ({newPrice} zł). Wybrane elementy pojawią się automatycznie w wiadomości.</p>
+                <p className="text-neutral-400 text-sm">Zaznacz, co dodasz do oferty, aby uzasadnić nową cenę ({newPrice} zł). Wybrane elementy pojawią się automatycznie w wiadomości.</p>
                 <div className="grid md:grid-cols-2 gap-3">
                    {pConf.stack.map(item => (
-                      <div key={item.id} onClick={() => setStack({...stack, [item.id]: !stack[item.id]})} className={`p-4 rounded-xl border cursor-pointer flex items-center gap-3 transition-all ${stack[item.id] ? 'bg-amber-500/10 border-amber-500' : 'bg-slate-950 border-slate-700'}`}>
-                         <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${stack[item.id] ? 'bg-amber-500 border-amber-500' : 'border-slate-600'}`}>
-                            {stack[item.id] && <CheckCircle className="w-3.5 h-3.5 text-slate-900"/>}
+                      <div key={item.id} onClick={() => setStack({...stack, [item.id]: !stack[item.id]})} className={`p-4 rounded-xl border cursor-pointer flex items-center gap-3 transition-all ${stack[item.id] ? 'bg-amber-500/10 border-amber-500' : 'bg-neutral-950 border-neutral-700'}`}>
+                         <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${stack[item.id] ? 'bg-amber-500 border-amber-500' : 'border-neutral-600'}`}>
+                            {stack[item.id] && <CheckCircle className="w-3.5 h-3.5 text-neutral-900"/>}
                          </div>
                          <div>
-                            <p className="font-bold text-sm text-slate-200">{item.label}</p>
-                            <p className="text-[10px] text-slate-500">Koszt: {item.cost}</p>
+                            <p className="font-bold text-sm text-neutral-200">{item.label}</p>
+                            <p className="text-[10px] text-neutral-500">Koszt: {item.cost}</p>
                          </div>
                       </div>
                    ))}
                 </div>
                 <div className="flex justify-end gap-4 mt-8">
-                   <button onClick={() => setStep(1)} className="text-slate-500 text-sm hover:text-white">Wstecz</button>
-                   <button onClick={() => setStep(3)} className="bg-white text-slate-900 px-6 py-2 rounded-lg font-bold text-sm hover:bg-slate-200 flex items-center gap-2">Dalej <ArrowRight className="w-4 h-4"/></button>
+                   <button onClick={() => setStep(1)} className="text-neutral-500 text-sm hover:text-white">Wstecz</button>
+                   <button onClick={() => setStep(3)} className="bg-red-700 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-red-600 flex items-center gap-2">Dalej <ArrowRight className="w-4 h-4"/></button>
                 </div>
              </div>
           )}
@@ -472,7 +492,7 @@ const ActionTab = ({ simState, profession }) => {
              <div className="space-y-6">
                 <div className="flex justify-between items-center">
                    <h3 className="text-xl font-bold text-white flex items-center gap-2"><MessageSquare className="text-amber-500"/> Generuj Wiadomość</h3>
-                   <select value={msgType} onChange={e => setMsgType(e.target.value)} className="bg-slate-800 text-white text-xs p-2 rounded border border-slate-700">
+                   <select value={msgType} onChange={e => setMsgType(e.target.value)} className="bg-neutral-800 text-white text-xs p-2 rounded border border-neutral-700">
                       <option value="sandwich">Metoda Kanapki</option>
                       <option value="official">Oficjalny</option>
                    </select>
@@ -480,12 +500,12 @@ const ActionTab = ({ simState, profession }) => {
                 
                 <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-1">
-                      <label className="text-xs text-slate-400">Data wejścia (Nowi)</label>
-                      <input type="text" placeholder="np. 1 Stycznia" className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white" onChange={e => setDates({...dates, start: e.target.value})} />
+                      <label className="text-xs text-neutral-400">Data wejścia (Nowi)</label>
+                      <input type="text" placeholder="np. 1 Stycznia" className="w-full bg-neutral-950 border border-neutral-700 rounded p-2 text-sm text-white" onChange={e => setDates({...dates, start: e.target.value})} />
                    </div>
                    <div className="space-y-1">
-                      <label className="text-xs text-slate-400">Data dla stałych</label>
-                      <input type="text" placeholder="np. 1 Marca" className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white" onChange={e => setDates({...dates, grace: e.target.value})} />
+                      <label className="text-xs text-neutral-400">Data dla stałych</label>
+                      <input type="text" placeholder="np. 1 Marca" className="w-full bg-neutral-950 border border-neutral-700 rounded p-2 text-sm text-white" onChange={e => setDates({...dates, grace: e.target.value})} />
                    </div>
                 </div>
 
@@ -493,10 +513,10 @@ const ActionTab = ({ simState, profession }) => {
                    <textarea 
                       value={customMsg} 
                       onChange={e => setCustomMsg(e.target.value)} 
-                      className="w-full h-64 bg-slate-950 border border-slate-700 rounded-xl p-4 text-sm text-slate-300 font-mono leading-relaxed focus:border-amber-500 outline-none resize-none"
+                      className="w-full h-64 bg-neutral-950 border border-neutral-700 rounded-xl p-4 text-sm text-neutral-300 font-mono leading-relaxed focus:border-amber-500 outline-none resize-none"
                    />
                    <div className="absolute bottom-4 right-4 flex gap-2">
-                        <span className="text-[10px] text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800">Możesz edytować tekst</span>
+                        <span className="text-[10px] text-neutral-500 bg-neutral-900 px-2 py-1 rounded border border-neutral-800">Możesz edytować tekst</span>
                         <button onClick={() => {navigator.clipboard.writeText(customMsg); alert("Skopiowano!")}} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg">
                             <Copy className="w-4 h-4"/> Kopiuj
                         </button>
@@ -504,8 +524,8 @@ const ActionTab = ({ simState, profession }) => {
                 </div>
                 
                 <div className="flex justify-end gap-4">
-                   <button onClick={() => setStep(2)} className="text-slate-500 text-sm hover:text-white">Wstecz</button>
-                   <button onClick={() => setStep(4)} className="bg-white text-slate-900 px-6 py-2 rounded-lg font-bold text-sm hover:bg-slate-200 flex items-center gap-2">Dalej <ArrowRight className="w-4 h-4"/></button>
+                   <button onClick={() => setStep(2)} className="text-neutral-500 text-sm hover:text-white">Wstecz</button>
+                   <button onClick={() => setStep(4)} className="bg-red-700 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-red-600 flex items-center gap-2">Dalej <ArrowRight className="w-4 h-4"/></button>
                 </div>
              </div>
           )}
@@ -514,25 +534,25 @@ const ActionTab = ({ simState, profession }) => {
              <div className="space-y-6">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2"><CalendarCheck className="text-amber-500"/> Twój Plan Wdrożenia</h3>
                 <div className="space-y-4">
-                   <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex gap-4 opacity-50">
+                   <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 flex gap-4 opacity-50">
                       <div className="w-8 h-8 rounded-full bg-emerald-900/50 flex items-center justify-center text-emerald-500 font-bold">✓</div>
-                      <div><h4 className="font-bold text-slate-400">Analiza i Strategia</h4><p className="text-xs text-slate-600">Wybrana strategia: {STRATEGIES[selectedStrategy].title}</p></div>
+                      <div><h4 className="font-bold text-neutral-400">Analiza i Strategia</h4><p className="text-xs text-neutral-600">Wybrana strategia: {STRATEGIES[selectedStrategy].title}</p></div>
                    </div>
-                   <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex gap-4">
-                      <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold">2</div>
-                      <div><h4 className="font-bold text-white">Przygotowanie Oferty (Tydzień 2)</h4><p className="text-xs text-slate-400">Zaktualizuj cennik na stronie. Przygotuj materiały z Value Stack.</p></div>
+                   <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 flex gap-4">
+                      <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-white font-bold">2</div>
+                      <div><h4 className="font-bold text-white">Przygotowanie Oferty (Tydzień 2)</h4><p className="text-xs text-neutral-400">Zaktualizuj cennik na stronie. Przygotuj materiały z Value Stack.</p></div>
                    </div>
-                   <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex gap-4">
-                      <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold">3</div>
-                      <div><h4 className="font-bold text-white">Komunikacja (Tydzień 3)</h4><p className="text-xs text-slate-400">Wyślij przygotowaną wiadomość do stałych klientów. Zbieraj feedback.</p></div>
+                   <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 flex gap-4">
+                      <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-white font-bold">3</div>
+                      <div><h4 className="font-bold text-white">Komunikacja (Tydzień 3)</h4><p className="text-xs text-neutral-400">Wyślij przygotowaną wiadomość do stałych klientów. Zbieraj feedback.</p></div>
                    </div>
-                   <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex gap-4">
-                      <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold">4</div>
-                      <div><h4 className="font-bold text-white">Start (Tydzień 4)</h4><p className="text-xs text-slate-400">Zmień ceny oficjalnie dla nowych klientów. Monitoruj churn.</p></div>
+                   <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 flex gap-4">
+                      <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-white font-bold">4</div>
+                      <div><h4 className="font-bold text-white">Start (Tydzień 4)</h4><p className="text-xs text-neutral-400">Zmień ceny oficjalnie dla nowych klientów. Monitoruj churn.</p></div>
                    </div>
                 </div>
                 <div className="flex justify-center mt-8">
-                   <button onClick={() => window.print()} className="text-slate-500 hover:text-white flex items-center gap-2 text-sm"><Printer className="w-4 h-4"/> Drukuj Plan</button>
+                   <button onClick={() => window.print()} className="text-neutral-500 hover:text-white flex items-center gap-2 text-sm"><Printer className="w-4 h-4"/> Drukuj Plan</button>
                 </div>
              </div>
           )}
@@ -559,34 +579,37 @@ const App = () => {
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-900 pb-12">
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-2xl">
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-amber-500 selection:text-neutral-900 pb-12">
+      <header className="bg-neutral-900 border-b border-red-900/30 sticky top-0 z-50 shadow-2xl">
         <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
                 <div className="bg-amber-500/10 p-2 rounded-lg border border-amber-500/20"><Sword className="text-amber-500 w-6 h-6" /></div>
                 <div>
                    <h1 className="text-lg font-bold text-white leading-none mb-1">GILDIA <span className="text-amber-500">TRENERÓW</span></h1>
-                   <select value={profession} onChange={(e) => setProfession(e.target.value)} className="bg-slate-950 text-[10px] uppercase font-bold text-slate-400 rounded border border-slate-700 outline-none focus:border-amber-500 py-1 px-2 cursor-pointer">
+                   <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Kalkulator podnoszenia cen</div>
+                   <select value={profession} onChange={(e) => setProfession(e.target.value)} className="bg-neutral-950 text-[10px] uppercase font-bold text-neutral-400 rounded border border-neutral-700 outline-none focus:border-amber-500 py-1 px-2 cursor-pointer">
                       {Object.entries(PROFESSIONS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                    </select>
                 </div>
             </div>
+            
+            {/* PRZEWIJANE MENU NA MOBILE - TERAZ Z TEKSTEM */}
             <div className="flex overflow-x-auto gap-2 pb-1 md:pb-0 no-scrollbar w-full md:w-auto">
                <NavButton id="diagnosis" label="1. Diagnoza" icon={Activity} activeTab={activeTab} setActiveTab={setActiveTab} />
                <NavButton id="simulator" label="2. Liczby" icon={Calculator} activeTab={activeTab} setActiveTab={setActiveTab} />
-               <NavButton id="action" label="3. Akcja" icon={Target} activeTab={activeTab} setActiveTab={setActiveTab} />
+               <NavButton id="action" label="3. Wdrożenie" icon={Target} activeTab={activeTab} setActiveTab={setActiveTab} />
             </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
-        {activeTab === 'diagnosis' && <DiagnosisTab state={checklistState} setState={setChecklistState} />}
-        {activeTab === 'simulator' && <SimulatorTab state={simState} setState={setSimState} profession={profession} />}
+        {activeTab === 'diagnosis' && <DiagnosisTab state={checklistState} setState={setChecklistState} onNext={() => setActiveTab('simulator')} />}
+        {activeTab === 'simulator' && <SimulatorTab state={simState} setState={setSimState} profession={profession} onNext={() => setActiveTab('action')} />}
         {activeTab === 'action' && <ActionTab simState={simState} profession={profession} />}
       </main>
 
-      <footer className="max-w-4xl mx-auto px-4 text-center text-slate-600 text-xs mt-12 pt-8 border-t border-slate-800">
-        <p>System Podnoszenia Cen v5.0 &bull; Gildia Trenerów &bull; Wszelkie prawa zastrzeżone.</p>
+      <footer className="max-w-4xl mx-auto px-4 text-center text-neutral-600 text-xs mt-12 pt-8 border-t border-neutral-800">
+        <p>Kalkulator podnoszenia cen | Gildia Trenerów | Wszelkie prawa zastrzeżone.</p>
       </footer>
     </div>
   );

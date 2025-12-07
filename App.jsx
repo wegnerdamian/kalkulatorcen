@@ -3,7 +3,7 @@ import {
   Calculator, TrendingUp, Users, CheckCircle, ShieldAlert, 
   Wallet, Clock, Sword, ScrollText, Target, Info, Coins, 
   Settings2, Activity, Dumbbell, Apple, AlertTriangle, 
-  Lightbulb, Brain, Layers, CalendarCheck, Copy
+  Lightbulb, Brain, Layers, CalendarCheck, Copy, Printer, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { 
   runSimulation, 
@@ -93,7 +93,28 @@ const SmartInput = ({ label, value, onChange, min, max, step, unit, hint, toolti
   </div>
 );
 
-// --- TABS ---
+const SimpleBarChart = ({ before, after, label }) => {
+    const max = Math.max(before, after) * 1.1 || 1;
+    const hBefore = Math.max(0, (before / max) * 100);
+    const hAfter = Math.max(0, (after / max) * 100);
+
+    return (
+        <div className="flex items-end h-28 gap-4 mt-2 bg-slate-950/30 p-2 rounded-lg border border-slate-800/50">
+            <div className="flex-1 flex flex-col justify-end items-center group relative">
+                <span className="text-[10px] text-slate-400 mb-1">{formatCurrency(before)}</span>
+                <div style={{ height: `${hBefore}%` }} className="w-full bg-slate-700 rounded-t-sm relative transition-all duration-500 min-h-[4px]"></div>
+                <span className="text-[10px] text-slate-500 mt-2 font-medium">PRZED</span>
+            </div>
+            <div className="flex-1 flex flex-col justify-end items-center group relative">
+                <span className={`text-[10px] font-bold mb-1 ${after >= before ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(after)}</span>
+                <div style={{ height: `${hAfter}%` }} className={`w-full rounded-t-sm relative transition-all duration-500 min-h-[4px] ${after >= before ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                <span className="text-[10px] text-white font-bold mt-2">PO ZMIANIE</span>
+            </div>
+        </div>
+    );
+};
+
+// --- SEKCJE APLIKACJI ---
 
 const ChecklistTab = ({ state, setState }) => {
   const { capacity, wonCalls, totalCalls, costIncrease, goldenWindow, signals } = state;
@@ -297,6 +318,9 @@ const SimulatorTab = ({ profession }) => {
                     <p className="text-xs text-slate-500 mt-2">
                         Poprzednio: {formatCurrency(showCosts ? res.currentProfit : res.currentRevenue)}
                     </p>
+                </div>
+                <div className="w-full md:w-48 hidden sm:block">
+                    <SimpleBarChart before={showCosts ? res.currentProfit : res.currentRevenue} after={showCosts ? res.newProfit : res.newRevenue} />
                 </div>
              </div>
 

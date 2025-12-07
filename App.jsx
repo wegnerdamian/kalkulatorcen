@@ -3,10 +3,11 @@ import {
   Calculator, TrendingUp, Users, CheckCircle, ShieldAlert, 
   Wallet, Clock, Sword, ScrollText, Target, Info, Coins, 
   Settings2, Activity, Dumbbell, Apple, Brain, Layers, 
-  CalendarCheck, Copy, Printer, ChevronDown, ChevronUp
+  CalendarCheck, Copy, Printer, ChevronDown, ChevronUp,
+  MessageSquare // <--- Dodałem brakującą ikonę tutaj
 } from 'lucide-react';
 
-// --- SYSTEM DIAGNOSTYCZNY (ERROR BOUNDARY) ---
+// --- SYSTEM DIAGNOSTYCZNY (Zostawiamy na wszelki wypadek) ---
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -30,7 +31,6 @@ class ErrorBoundary extends React.Component {
               <ShieldAlert className="w-8 h-8" />
               Wykryto błąd aplikacji
             </h1>
-            <p className="mb-4 text-slate-300">Zrób zrzut ekranu tego komunikatu i wyślij go w czacie:</p>
             <div className="bg-black/50 p-4 rounded-lg overflow-auto border border-red-900/50">
               <p className="text-red-300 font-bold mb-2">{this.state.error && this.state.error.toString()}</p>
               <pre className="text-xs text-red-200/70 whitespace-pre-wrap">
@@ -189,6 +189,8 @@ const SectionHeader = ({ title, subtitle, icon: Icon }) => (
     {subtitle && <p className="text-slate-400 mt-1 text-sm md:text-base">{subtitle}</p>}
   </div>
 );
+
+// --- TAB CONTENT ---
 
 const ChecklistTab = ({ state, setState }) => {
   if (!state) return <div>Ładowanie...</div>;

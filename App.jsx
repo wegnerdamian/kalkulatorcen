@@ -6,7 +6,7 @@ import {
   CalendarCheck, Copy, Printer, ChevronDown, ChevronUp
 } from 'lucide-react';
 
-// --- LOGIKA BIZNESOWA WEWNĄTRZ PLIKU ---
+// --- SEKCJA LOGIKI BIZNESOWEJ (Wklejona wewnątrz, aby niczego nie importować) ---
 
 const PROFESSIONS = {
   trainer: { label: "Trener Personalny", icon: Dumbbell, sessionName: "trening", variableName: "koszt dojazdu" },
@@ -144,6 +144,16 @@ const NavButton = ({ id, label, icon: Icon, activeTab, setActiveTab }) => (
   </button>
 );
 
+const SectionHeader = ({ title, subtitle, icon: Icon }) => (
+  <div className="mb-6 border-b border-slate-800 pb-4">
+    <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
+      {Icon && <Icon className="text-amber-500 w-6 h-6" />}
+      {title}
+    </h2>
+    {subtitle && <p className="text-slate-400 mt-1 text-sm md:text-base">{subtitle}</p>}
+  </div>
+);
+
 const ChecklistTab = ({ state, setState }) => {
   const result = calculateChecklistScore(state);
   const updateSignal = (idx) => setState({...state, signals: {...state.signals, [idx]: !state.signals[idx]}});
@@ -185,9 +195,31 @@ const ChecklistTab = ({ state, setState }) => {
   );
 };
 
+const SimpleBarChart = ({ before, after }) => {
+    const max = Math.max(before, after) * 1.1 || 1;
+    const hBefore = Math.max(0, (before / max) * 100);
+    const hAfter = Math.max(0, (after / max) * 100);
+
+    return (
+        <div className="flex items-end h-28 gap-4 mt-2 bg-slate-950/30 p-2 rounded-lg border border-slate-800/50">
+            <div className="flex-1 flex flex-col justify-end items-center group relative">
+                <span className="text-[10px] text-slate-400 mb-1">{formatCurrency(before)}</span>
+                <div style={{ height: `${hBefore}%` }} className="w-full bg-slate-700 rounded-t-sm relative transition-all duration-500 min-h-[4px]"></div>
+                <span className="text-[10px] text-slate-500 mt-2 font-medium">PRZED</span>
+            </div>
+            <div className="flex-1 flex flex-col justify-end items-center group relative">
+                <span className={`text-[10px] font-bold mb-1 ${after >= before ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(after)}</span>
+                <div style={{ height: `${hAfter}%` }} className={`w-full rounded-t-sm relative transition-all duration-500 min-h-[4px] ${after >= before ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                <span className="text-[10px] text-white font-bold mt-2">PO ZMIANIE</span>
+            </div>
+        </div>
+    );
+};
+
 const SimulatorTab = ({ profession }) => {
   const [inputs, setInputs] = useState({ clients: 20, sessionsPerClient: 8, price: 150, increasePercent: 20, churnPercent: 15, churnType: 'percent', churnValue: 15, sessionsPerClientAfter: 8, fixedCosts: 2000, variableCost: 0 });
   const [showCosts, setShowCosts] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   
   useEffect(() => { setInputs(p => ({...p, sessionsPerClientAfter: p.sessionsPerClient})); }, [inputs.sessionsPerClient]);
   const res = runSimulation({...inputs, churnPercent: inputs.churnType === 'percent' ? inputs.churnValue : 0});
@@ -213,6 +245,15 @@ const SimulatorTab = ({ profession }) => {
              <div className="h-px bg-slate-800 my-6"></div>
              <SmartInput label="Planowana podwyżka (%)" value={inputs.increasePercent} onChange={v=>setInputs({...inputs, increasePercent:v})} min={0} max={100} step={1} unit="%" tooltip="Np. 20% z 150 zł = 180 zł" />
              <SmartInput label="Szacowana utrata klientów (%)" value={inputs.churnValue} onChange={v=>setInputs({...inputs, churnValue:v})} min={0} max={100} step={1} unit="%" markers={[{ at: 12.5, label: 'ZDROWY', color: 'bg-emerald-500' }, { at: 20, label: 'RYZYKO', color: 'bg-red-500' }]} />
+             
+             <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs text-slate-500 underline decoration-slate-700 hover:text-slate-300 mb-2">
+                 {showAdvanced ? "Ukryj opcje zaawansowane" : "Pokaż opcje zaawansowane"}
+            </button>
+            {showAdvanced && (
+                 <div className="mt-2 animate-in fade-in bg-slate-950 p-3 rounded-lg border border-slate-800">
+                     <SmartInput label={`Śr. liczba ${pConf.sessionName === 'trening' ? 'treningów' : 'wizyt'} po zmianie`} value={inputs.sessionsPerClientAfter} onChange={v=>setInputs({...inputs, sessionsPerClientAfter:v})} min={1} max={40} step={1} unit="szt." hint="Gdy klient zostaje, ale przychodzi rzadziej"/>
+                 </div>
+            )}
           </div>
        </div>
        <div className="lg:col-span-7 space-y-6">
@@ -226,6 +267,9 @@ const SimulatorTab = ({ profession }) => {
                         <div className={`px-2 py-1 rounded text-xs font-bold ${res.status === 'positive' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>{res.profitDiff > 0 ? '+' : ''}{formatCurrency(showCosts ? res.profitDiff : res.revenueDiff)}</div>
                     </div>
                     <p className="text-xs text-slate-500 mt-2">Poprzednio: {formatCurrency(showCosts ? res.currentProfit : res.currentRevenue)}</p>
+                </div>
+                <div className="w-full md:w-48 hidden sm:block">
+                    <SimpleBarChart before={showCosts ? res.currentProfit : res.currentRevenue} after={showCosts ? res.newProfit : res.newRevenue} />
                 </div>
              </div>
              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-6">

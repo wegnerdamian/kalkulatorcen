@@ -456,7 +456,7 @@ Pozdro,
                         </li>
                         <li className="flex gap-2">
                             <span className="text-emerald-400 font-bold">✅</span>
-                            <span>Metoda Kanapki: Pozytyw (sukcesy) -> Info o cenie -> Pozytyw (bonus dla stałych).</span>
+                            <span>Metoda Kanapki: Pozytyw (sukcesy) → Info o cenie → Pozytyw (bonus dla stałych).</span>
                         </li>
                     </ul>
                 </div>

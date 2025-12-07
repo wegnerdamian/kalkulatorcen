@@ -6,19 +6,71 @@ import {
   CalendarCheck, Copy, Printer, ChevronDown, ChevronUp
 } from 'lucide-react';
 
+// --- SYSTEM DIAGNOSTYCZNY (ERROR BOUNDARY) ---
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    this.setState({ error, errorInfo });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-900 text-white p-8 font-mono">
+          <div className="max-w-3xl mx-auto bg-red-950/50 border-2 border-red-500 rounded-xl p-6">
+            <h1 className="text-2xl font-bold text-red-400 mb-4 flex items-center gap-2">
+              <ShieldAlert className="w-8 h-8" />
+              Wykryto błąd aplikacji
+            </h1>
+            <p className="mb-4 text-slate-300">Zrób zrzut ekranu tego komunikatu i wyślij go w czacie:</p>
+            <div className="bg-black/50 p-4 rounded-lg overflow-auto border border-red-900/50">
+              <p className="text-red-300 font-bold mb-2">{this.state.error && this.state.error.toString()}</p>
+              <pre className="text-xs text-red-200/70 whitespace-pre-wrap">
+                {this.state.errorInfo && this.state.errorInfo.componentStack}
+              </pre>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children; 
+  }
+}
+
 // --- LOGIKA BIZNESOWA ---
 
+const PROFESSIONS = {
+  trainer: { label: "Trener Personalny", icon: Dumbbell, sessionName: "trening", variableName: "koszt dojazdu" },
+  dietitian: { label: "Dietetyk", icon: Apple, sessionName: "konsultacja", variableName: "koszt materiałów" },
+  physio: { label: "Fizjoterapeuta", icon: Activity, sessionName: "wizyta", variableName: "koszt jednorazowy" }
+};
+
+const GOLDEN_WINDOWS = [
+  { id: 'other', label: 'Inny termin' },
+  { id: 'january', label: 'Styczeń (postanowienia)' },
+  { id: 'september', label: 'Wrzesień/Paź (po wakacjach)' },
+  { id: 'yearEnd', label: 'Koniec roku (budżety)' },
+];
+
 const calculateChecklistScore = (inputs) => {
+  if (!inputs) return { rawScore: 0, recommendation: { title: "", desc: "" } };
   const { capacity, costIncrease, goldenWindow, signals } = inputs;
-  const signalsCount = Object.values(signals).filter(Boolean).length;
+  const signalsCount = signals ? Object.values(signals).filter(Boolean).length : 0;
   let rawScore = signalsCount;
 
   if (capacity >= 85) rawScore += 2;
   else if (capacity >= 70) rawScore += 1;
 
   if (costIncrease) rawScore += 1;
-  const goodWindows = ['january', 'september', 'yearEnd'];
-  if (goodWindows.includes(goldenWindow)) rawScore += 1;
+  if (['january', 'september', 'yearEnd'].includes(goldenWindow)) rawScore += 1;
 
   let recommendation = {
     title: 'Wynik niski (0-3)',
@@ -39,69 +91,52 @@ const calculateChecklistScore = (inputs) => {
 const runSimulation = (inputs) => {
   const { clients, sessionsPerClient, price, increasePercent, churnPercent, sessionsPerClientAfter, fixedCosts, variableCost, churnType, churnValue } = inputs;
   
-  const safeClients = Math.max(0, clients);
+  const safeClients = Math.max(0, Number(clients) || 0);
   
-  // Stan Obecny
-  const currentSessions = safeClients * sessionsPerClient;
-  const currentRevenue = currentSessions * price;
-  const currentProfit = currentRevenue - fixedCosts - (currentSessions * variableCost);
+  const currentSessions = safeClients * (Number(sessionsPerClient) || 0);
+  const currentRevenue = currentSessions * (Number(price) || 0);
+  const currentProfit = currentRevenue - (Number(fixedCosts) || 0) - (currentSessions * (Number(variableCost) || 0));
   const currentNetHourly = currentSessions > 0 ? currentProfit / currentSessions : 0;
 
-  // Stan Po Zmianie
-  const newPrice = price * (1 + increasePercent / 100);
+  const newPrice = (Number(price) || 0) * (1 + (Number(increasePercent) || 0) / 100);
   
   let clientsLost = 0;
   if (churnType === 'percent') {
-      clientsLost = safeClients * (churnPercent / 100);
+      clientsLost = safeClients * ((Number(churnPercent) || 0) / 100);
   } else {
-      clientsLost = churnValue; 
+      clientsLost = Number(churnValue) || 0; 
   }
   
   const clientsLeft = Math.max(0, safeClients - clientsLost);
-  const newSessions = clientsLeft * sessionsPerClientAfter; 
+  const newSessions = clientsLeft * (Number(sessionsPerClientAfter) || 0); 
   const newRevenue = newSessions * newPrice;
-  const newProfit = newRevenue - fixedCosts - (newSessions * variableCost);
+  const newProfit = newRevenue - (Number(fixedCosts) || 0) - (newSessions * (Number(variableCost) || 0));
   const newNetHourly = newSessions > 0 ? newProfit / newSessions : 0;
 
-  // Delty
   const profitDiff = newProfit - currentProfit;
   const revenueDiff = newRevenue - currentRevenue;
   const hoursSaved = currentSessions - newSessions;
-  const newMarginPerSession = newPrice - variableCost;
-  const timeValue = Math.max(0, hoursSaved * newMarginPerSession);
+  const timeValue = Math.max(0, hoursSaved * (newPrice - (Number(variableCost) || 0)));
 
-  // Break Even Point
   let maxClientsToLose = 0;
-  const contributionMargin = newPrice - variableCost;
-  if (contributionMargin > 0 && sessionsPerClientAfter > 0) {
-      const requiredClients = (currentProfit + fixedCosts) / (sessionsPerClientAfter * contributionMargin);
+  const contributionMargin = newPrice - (Number(variableCost) || 0);
+  if (contributionMargin > 0 && (Number(sessionsPerClientAfter) || 0) > 0) {
+      const requiredClients = (currentProfit + (Number(fixedCosts) || 0)) / ((Number(sessionsPerClientAfter) || 0) * contributionMargin);
       maxClientsToLose = Math.max(0, safeClients - requiredClients);
   }
-
-  let status = 'neutral';
-  // Decyzja na podstawie zysku (jeśli koszty są on) lub przychodu
-  const diffToCheck = profitDiff; 
-  if (diffToCheck > 10) status = 'positive';
-  if (diffToCheck < -10) status = 'negative';
-
-  let churnHealth = 'optimal';
-  // Przeliczenie % churnu dla wyświetlenia
-  const actualChurnPercent = safeClients > 0 ? (clientsLost / safeClients) * 100 : 0;
-  if (actualChurnPercent <= 5) churnHealth = 'tooLow';
-  if (actualChurnPercent > 20) churnHealth = 'tooHigh';
 
   return {
     currentRevenue, currentProfit, currentNetHourly,
     newRevenue, newProfit, newNetHourly, newPrice: Math.round(newPrice),
     profitDiff, revenueDiff, clientsLost, clientsLeft, hoursSaved, timeValue, maxClientsToLose,
-    status, churnHealth,
+    status: profitDiff > 10 ? 'positive' : profitDiff < -10 ? 'negative' : 'neutral',
     isValid: currentRevenue > 0
   };
 };
 
 const buildMessage = (type, ctx) => {
   const templates = {
-    sandwich: `Cześć ${ctx.clientName},\n\nDzięki za super współpracę! Widzę Twój progres i mega mnie to cieszy.\n\nOd ${ctx.startDate} aktualizuję cennik (cena za ${ctx.packageName}: ${ctx.newPrice} zł). Dzięki temu mogę inwestować w jakość naszych treningów.\n\nDla Ciebie jako stałego klienta nowa stawka wchodzi dopiero od ${ctx.graceDate}.\n\nDziałamy dalej! 💪`,
+    sandwich: `Cześć ${ctx.clientName},\n\nNa początku chcę Ci bardzo podziękować za dotychczasową współpracę. Widzę, jak przez ostatnie miesiące poprawiła się Twoja forma i mega mnie to cieszy.\n\nPiszę, bo od ${ctx.startDate} aktualizuję cennik moich usług. Cena za ${ctx.packageName} wzrośnie z ${ctx.oldPrice} zł do ${ctx.newPrice} zł.\n\nDzięki tej zmianie mogę dalej inwestować w jakość naszej współpracy. Ponieważ jesteś stałym klientem, dla Ciebie nowa cena zacznie obowiązywać dopiero od ${ctx.graceDate}.\n\nDziałamy dalej i robimy formę. 💪`,
     official: `Szanowny/a ${ctx.clientName},\n\nInformuję o planowanej waloryzacji cennika usług od ${ctx.startDate}. Nowa cena za ${ctx.packageName} wyniesie ${ctx.newPrice} zł (dotychczas: ${ctx.oldPrice} zł).\n\nZmiana ta podyktowana jest wzrostem kosztów operacyjnych oraz inwestycjami w jakość. Dla obecnych klientów przewidziałem okres przejściowy – nowa stawka obowiązuje od ${ctx.graceDate}.\n\nZ wyrazami szacunku,`,
     casual: `Hej ${ctx.clientName}! 👋\n\nSzybkie info: od ${ctx.startDate} zmieniam cennik na ${ctx.newPrice} zł. Inwestuję w sprzęt i szkolenia, żebyśmy robili lepsze wyniki!\n\nDla Ciebie stara cena zostaje do ${ctx.graceDate}. Dzięki, że jesteś!`,
     vip: `Dzień dobry ${ctx.clientName},\n\nW związku z rozwojem oferty premium, od ${ctx.startDate} aktualizuję stawkę za ${ctx.packageName} do ${ctx.newPrice} zł.\n\nJako stały klient masz gwarancję obecnej ceny do ${ctx.graceDate}.`
@@ -109,7 +144,7 @@ const buildMessage = (type, ctx) => {
   return templates[type] || "Wybierz szablon.";
 };
 
-const formatCurrency = (val) => new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN', maximumFractionDigits: 0 }).format(val);
+const formatCurrency = (val) => new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN', maximumFractionDigits: 0 }).format(val || 0);
 
 // --- KOMPONENTY UI ---
 
@@ -145,24 +180,33 @@ const NavButton = ({ id, label, icon: Icon, activeTab, setActiveTab }) => (
   </button>
 );
 
-const ChecklistTab = ({ state, setState }) => {
-  const result = calculateChecklistScore(state);
-  const updateSignal = (idx) => setState({...state, signals: {...state.signals, [idx]: !state.signals[idx]}});
-  const items = ["Mam listę oczekujących klientów.", "Prawie nikt nie mówi „za drogo”.", "Pracuję po godzinach, żeby spiąć budżet.", "Czuję frustrację, gdy ktoś odwoła wizytę.", "Traktują mnie jak kumpla, nie eksperta.", "Nie podnosiłem cen od 12–18 miesięcy.", "Inwestuję w szkolenia więcej, niż odrabiam.", "Mam problemowych / roszczeniowych klientów.", "Konkurencja bierze 30–50% więcej.", "Boję się sprawdzić konto pod koniec miesiąca."];
+const SectionHeader = ({ title, subtitle, icon: Icon }) => (
+  <div className="mb-6 border-b border-slate-800 pb-4">
+    <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
+      {Icon && <Icon className="text-amber-500 w-6 h-6" />}
+      {title}
+    </h2>
+    {subtitle && <p className="text-slate-400 mt-1 text-sm md:text-base">{subtitle}</p>}
+  </div>
+);
 
-  const GOLDEN_WINDOWS = [
-    { id: 'other', label: 'Inny termin' },
-    { id: 'january', label: 'Styczeń (postanowienia)' },
-    { id: 'september', label: 'Wrzesień/Paź (po wakacjach)' },
-    { id: 'yearEnd', label: 'Koniec roku (budżety)' },
-  ];
+const ChecklistTab = ({ state, setState }) => {
+  if (!state) return <div>Ładowanie...</div>;
+  const result = calculateChecklistScore({
+    capacityUtilization: state.capacity,
+    costIncrease: state.costIncrease,
+    goldenWindow: state.goldenWindow,
+    signalsCheckedCount: Object.values(state.signals || {}).filter(Boolean).length
+  });
+  const updateSignal = (idx) => setState({...state, signals: {...(state.signals || {}), [idx]: !state.signals?.[idx]}});
+  const items = ["Mam listę oczekujących klientów.", "Prawie nikt nie mówi „za drogo”.", "Pracuję po godzinach, żeby spiąć budżet.", "Czuję frustrację, gdy ktoś odwoła wizytę.", "Traktują mnie jak kumpla, nie eksperta.", "Nie podnosiłem cen od 12–18 miesięcy.", "Inwestuję w szkolenia więcej, niż odrabiam.", "Mam problemowych / roszczeniowych klientów.", "Konkurencja bierze 30–50% więcej.", "Boję się sprawdzić konto pod koniec miesiąca."];
 
   return (
     <div className="grid lg:grid-cols-2 gap-8 animate-in fade-in">
       <div className="space-y-6">
         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
           <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-4">1. Dane</h3>
-          <SmartInput label="Obłożenie kalendarza" unit="%" value={state.capacity} onChange={v => setState({...state, capacity: v})} min={0} max={100} />
+          <SmartInput label="Obłożenie kalendarza" unit="%" value={state.capacity || 0} onChange={v => setState({...state, capacity: v})} min={0} max={100} />
           <div className="flex items-center gap-2 mb-4 p-3 bg-slate-800/50 rounded-lg cursor-pointer" onClick={() => setState({...state, costIncrease: !state.costIncrease})}>
              <div className={`w-4 h-4 rounded border flex items-center justify-center ${state.costIncrease ? 'bg-amber-500 border-amber-500' : 'border-slate-600'}`}>{state.costIncrease && <CheckCircle className="w-3 h-3 text-slate-900" />}</div>
              <span className="text-sm text-slate-300">Moje koszty wzrosły (ostatnie 12 msc)</span>
@@ -176,9 +220,9 @@ const ChecklistTab = ({ state, setState }) => {
            <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-4">2. Sygnały</h3>
            <div className="space-y-2">
              {items.map((txt, idx) => (
-                <div key={idx} onClick={() => updateSignal(idx)} className={`p-3 rounded-lg border cursor-pointer flex items-start gap-3 ${state.signals[idx] ? 'bg-amber-500/10 border-amber-500/50' : 'bg-slate-950 border-slate-800'}`}>
-                   <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${state.signals[idx] ? 'bg-amber-500 border-amber-500' : 'border-slate-600'}`}>{state.signals[idx] && <CheckCircle className="w-3 h-3 text-slate-900" />}</div>
-                   <p className={`text-xs font-medium ${state.signals[idx] ? 'text-white' : 'text-slate-400'}`}>{txt}</p>
+                <div key={idx} onClick={() => updateSignal(idx)} className={`p-3 rounded-lg border cursor-pointer flex items-start gap-3 ${state.signals?.[idx] ? 'bg-amber-500/10 border-amber-500/50' : 'bg-slate-950 border-slate-800'}`}>
+                   <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${state.signals?.[idx] ? 'bg-amber-500 border-amber-500' : 'border-slate-600'}`}>{state.signals?.[idx] && <CheckCircle className="w-3 h-3 text-slate-900" />}</div>
+                   <p className={`text-xs font-medium ${state.signals?.[idx] ? 'text-white' : 'text-slate-400'}`}>{txt}</p>
                 </div>
              ))}
            </div>
@@ -194,9 +238,9 @@ const ChecklistTab = ({ state, setState }) => {
 };
 
 const SimpleBarChart = ({ before, after }) => {
-    const max = Math.max(before, after) * 1.1 || 1;
-    const hBefore = Math.max(0, (before / max) * 100);
-    const hAfter = Math.max(0, (after / max) * 100);
+    const max = Math.max(before || 0, after || 0) * 1.1 || 1;
+    const hBefore = Math.max(0, ((before || 0) / max) * 100);
+    const hAfter = Math.max(0, ((after || 0) / max) * 100);
 
     return (
         <div className="flex items-end h-28 gap-4 mt-2 bg-slate-950/30 p-2 rounded-lg border border-slate-800/50">
@@ -219,15 +263,9 @@ const SimulatorTab = ({ profession }) => {
   const [showCosts, setShowCosts] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   
-  const PROFESSIONS = {
-    trainer: { label: "Trener Personalny", icon: Dumbbell, sessionName: "trening", variableName: "koszt dojazdu" },
-    dietitian: { label: "Dietetyk", icon: Apple, sessionName: "konsultacja", variableName: "koszt materiałów" },
-    physio: { label: "Fizjoterapeuta", icon: Activity, sessionName: "wizyta", variableName: "koszt jednorazowy" }
-  };
-
   useEffect(() => { setInputs(p => ({...p, sessionsPerClientAfter: p.sessionsPerClient})); }, [inputs.sessionsPerClient]);
   const res = runSimulation({...inputs, churnPercent: inputs.churnType === 'percent' ? inputs.churnValue : 0});
-  const pConf = PROFESSIONS[profession];
+  const pConf = PROFESSIONS[profession] || PROFESSIONS['trainer'];
 
   return (
     <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in">
@@ -334,7 +372,70 @@ const PlanTab = () => (
     </div>
 );
 
-const App = () => {
+const StrategyTab = () => (
+  <div className="grid md:grid-cols-3 gap-6 animate-in fade-in">
+      {[
+          { t: 'Korekta Inflacyjna', v: '3-8%', d: 'Delikatne dostosowanie. Nie podnosiłeś cen od roku? Koszty wzrosły? To bezpieczny ruch.', risk: 'Jeśli robisz tylko to, zjara Cię inflacja.', icon: TrendingUp, col: 'blue' },
+          { t: 'Wzrost Jakości', v: '10-20%', d: 'Standardowa podwyżka biznesowa. Masz nowe szkolenia, sprzęt, wyniki? Klient płaci za "upgrade".', risk: 'Wymaga dobrej komunikacji (Value Stack).', icon: Sword, col: 'emerald' },
+          { t: 'Repozycjonowanie', v: '30-50%+', d: 'Radykalna zmiana. Wchodzisz w segment Premium/VIP. Oczekuj wymiany bazy klientów.', risk: 'Stara baza odejdzie. Musisz mieć silny marketing.', icon: Target, col: 'amber' }
+      ].map((s, idx) => (
+          <div key={idx} className={`bg-slate-900 p-6 rounded-2xl border-t-4 border-${s.col}-500 shadow-xl flex flex-col`}>
+              <div className="flex justify-between items-start mb-4">
+                  <h3 className="font-bold text-white text-lg">{s.t}</h3>
+                  <s.icon className={`w-6 h-6 text-${s.col}-500`} />
+              </div>
+              <div className="text-3xl font-black text-white mb-4">{s.v}</div>
+              <p className="text-sm text-slate-400 mb-4 flex-grow">{s.d}</p>
+              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-[10px] text-slate-500 mt-auto">
+                  <strong className="text-slate-400">Ryzyko:</strong> {s.risk}
+              </div>
+          </div>
+      ))}
+  </div>
+);
+
+const ValueStackTab = () => {
+  const [items, setItems] = useState({
+     video: false, report: false, whatsapp: false, community: false, ebook: false, welcome: false
+  });
+
+  const toggle = (k) => setItems({...items, [k]: !items[k]});
+
+  const content = [
+    { k: 'video', title: 'Biblioteka Wideo', desc: 'Nagrane raz materiały (technika, edukacja), dostępne 24/7.' },
+    { k: 'report', title: 'Raport Postępów', desc: 'Miesięczne podsumowanie wyników "na papierze".' },
+    { k: 'whatsapp', title: 'Priorytetowy Kontakt', desc: 'WhatsApp VIP - szybsze odpowiedzi na pytania.' },
+    { k: 'community', title: 'Zamknięta Grupa', desc: 'Dostęp do społeczności Twoich podopiecznych (FB/Discord).' },
+    { k: 'ebook', title: 'Mini-Poradnik', desc: 'PDF np. "Jak jeść na mieście?". Zrób raz, wysyłaj każdemu.' },
+    { k: 'welcome', title: 'Welcome Pack', desc: 'Fizyczny gadżet na start (bidon, guma, list powitalny).' }
+  ];
+
+  return (
+    <div className="animate-in fade-in">
+       <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 mb-8">
+           <p className="text-slate-300 mb-6 max-w-2xl">
+              Klient chętniej zaakceptuje wyższą cenę, jeśli widzi, że zyskuje <strong>WIĘCEJ</strong>. 
+              Zaznacz elementy, które możesz dodać do usługi małym kosztem.
+           </p>
+           <div className="grid md:grid-cols-2 gap-4">
+              {content.map(c => (
+                 <div key={c.k} onClick={() => toggle(c.k)} className={`p-4 rounded-xl border cursor-pointer transition-all flex gap-4 items-start ${items[c.k] ? 'bg-amber-500/10 border-amber-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
+                    <div className={`mt-1 w-5 h-5 rounded border flex items-center justify-center shrink-0 ${items[c.k] ? 'bg-amber-500 border-amber-500 text-slate-900' : 'border-slate-600'}`}>
+                       {items[c.k] && <CheckCircle className="w-3.5 h-3.5" />}
+                    </div>
+                    <div>
+                       <h4 className={`font-bold text-sm ${items[c.k] ? 'text-white' : 'text-slate-400'}`}>{c.title}</h4>
+                       <p className="text-xs text-slate-500 mt-1">{c.desc}</p>
+                    </div>
+                 </div>
+              ))}
+           </div>
+       </div>
+    </div>
+  );
+};
+
+const MainApp = () => {
   const [activeTab, setActiveTab] = useState('checklist');
   const [profession, setProfession] = useState('trainer');
   const [checklistState, setChecklistState] = useState({ capacity: 90, totalCalls: 10, wonCalls: 8, costIncrease: true, goldenWindow: 'january', signals: {} });
@@ -350,6 +451,8 @@ const App = () => {
             <div className="flex overflow-x-auto gap-2 pb-1 md:pb-0 no-scrollbar">
                <NavButton id="checklist" label="Checklista" icon={CheckCircle} activeTab={activeTab} setActiveTab={setActiveTab} />
                <NavButton id="calculator" label="Symulator" icon={Calculator} activeTab={activeTab} setActiveTab={setActiveTab} />
+               <NavButton id="strategy" label="Strategia" icon={Target} activeTab={activeTab} setActiveTab={setActiveTab} />
+               <NavButton id="valuestack" label="Value Stack" icon={Layers} activeTab={activeTab} setActiveTab={setActiveTab} />
                <NavButton id="scripts" label="Gotowce" icon={MessageSquare} activeTab={activeTab} setActiveTab={setActiveTab} />
                <NavButton id="plan" label="Plan" icon={CalendarCheck} activeTab={activeTab} setActiveTab={setActiveTab} />
             </div>
@@ -358,11 +461,22 @@ const App = () => {
       <main className="max-w-6xl mx-auto px-4 py-8">
         {activeTab === 'checklist' && <ChecklistTab state={checklistState} setState={setChecklistState} />}
         {activeTab === 'calculator' && <SimulatorTab profession={profession} />}
+        {activeTab === 'strategy' && <StrategyTab />}
+        {activeTab === 'valuestack' && <ValueStackTab />}
         {activeTab === 'scripts' && <TemplatesTab profession={profession} />}
         {activeTab === 'plan' && <PlanTab />}
       </main>
+      <footer className="max-w-4xl mx-auto px-4 text-center text-slate-600 text-xs mt-12 pt-8 border-t border-slate-800">
+        <p>Narzędzie wewnętrzne Gildii Trenerów. Wszelkie prawa zastrzeżone.</p>
+      </footer>
     </div>
   );
 };
 
-export default App;
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
+  );
+}

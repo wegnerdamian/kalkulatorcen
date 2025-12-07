@@ -26,38 +26,82 @@ export const calculateBreakEvenChurnPercent = (priceIncreasePercent) => {
 };
 
 export const runSimulation = (inputs) => {
-  const { clients, sessionsPerClient, price, increasePercent, churnPercent } = inputs;
+  const { clients, sessionsPerClient, price, increasePercent, churnPercent, sessionsPerClientAfter, fixedCosts, variableCost } = inputs;
 
-  const currentRevenue = calculateMonthlyRevenue(clients * sessionsPerClient, price);
+  // Walidacja podstawowa
+  const safeClients = Math.max(0, clients);
+  const safeSessions = Math.max(0, sessionsPerClient);
   
-  const newPrice = calculateNewPrice(price, increasePercent);
-  const clientsAfter = calculateClientsAfter(clients, churnPercent);
-  const newRevenue = calculateMonthlyRevenue(clientsAfter * sessionsPerClient, newPrice);
-  
-  const diffAbs = newRevenue - currentRevenue;
-  const diffPercent = currentRevenue > 0 ? (diffAbs / currentRevenue) * 100 : 0;
+  // 1. Stan Obecny
+  const currentSessions = safeClients * safeSessions;
+  const currentRevenue = currentSessions * price;
+  const currentVariableCosts = currentSessions * variableCost;
+  const currentProfit = currentRevenue - fixedCosts - currentVariableCosts;
+  const currentHours = currentSessions; 
+  // Stawka godzinowa (netto - po odjęciu kosztów zmiennych i stałych per godzina)
+  const currentCostPerHour = currentHours > 0 ? (fixedCosts / currentHours) + variableCost : 0;
+  const currentNetHourly = Math.max(0, price - currentCostPerHour);
 
-  // Ocena opłacalności (z buforem +/- 2%)
+  // 2. Stan Po Zmianie
+  const newPrice = price * (1 + increasePercent / 100);
+  
+  let clientsLost = 0;
+  if (inputs.churnType === 'percent') {
+      clientsLost = safeClients * (churnPercent / 100);
+  } else {
+      clientsLost = inputs.churnValue || churnPercent; 
+  }
+  const clientsLeft = Math.max(0, safeClients - clientsLost);
+  const newSessions = clientsLeft * sessionsPerClientAfter; 
+  
+  const newRevenue = newSessions * newPrice;
+  const newVariableCosts = newSessions * variableCost;
+  const newProfit = newRevenue - fixedCosts - newVariableCosts;
+  const newHours = newSessions;
+  
+  const newCostPerHour = newHours > 0 ? (fixedCosts / newHours) + variableCost : 0;
+  const newNetHourly = Math.max(0, newPrice - newCostPerHour);
+
+  // 3. Delty
+  const profitDiff = newProfit - currentProfit;
+  const revenueDiff = newRevenue - currentRevenue;
+  const hoursSaved = currentHours - newHours;
+  
+  const newMarginPerSession = newPrice - variableCost;
+  const timeValue = Math.max(0, hoursSaved * newMarginPerSession);
+
+  // 4. Break Even Point
+  let requiredClients = 0;
+  const contributionMargin = newPrice - variableCost;
+  
+  if (contributionMargin > 0 && sessionsPerClientAfter > 0) {
+      const requiredContribution = currentProfit + fixedCosts;
+      requiredClients = requiredContribution / (sessionsPerClientAfter * contributionMargin);
+  }
+  
+  const maxClientsToLose = Math.max(0, safeClients - requiredClients);
+
   let status = 'neutral';
-  if (diffPercent > 2) status = 'positive';
-  if (diffPercent < -2) status = 'negative';
+  // Status opłacalności (bazujemy na zysku jeśli koszty włączone, lub przychodzie)
+  // Tutaj dla uproszczenia zwracamy różnicę zysku jako wskaźnik
+  if (profitDiff > 10) status = 'positive';
+  if (profitDiff < -10) status = 'negative';
 
-  // Ocena zdrowia churnu
   let churnHealth = 'optimal';
   if (churnPercent <= 5) churnHealth = 'tooLow';
   if (churnPercent > 20) churnHealth = 'tooHigh';
 
   return {
-    currentRevenue,
-    newRevenue,
+    currentRevenue, currentProfit, currentNetHourly,
+    newRevenue, newProfit, newNetHourly, 
     newPrice: Math.round(newPrice),
-    clientsAfter,
-    clientsLost: clients - clientsAfter,
-    diffAbs,
-    diffPercent,
-    status, // positive, neutral, negative
-    churnHealth, // tooLow, optimal, tooHigh
-    breakEvenChurn: calculateBreakEvenChurnPercent(increasePercent)
+    profitDiff, revenueDiff,
+    clientsLost, clientsLeft,
+    hoursSaved, timeValue,
+    maxClientsToLose,
+    status,
+    churnHealth,
+    isValid: currentRevenue > 0
   };
 };
 
@@ -65,56 +109,41 @@ export const runSimulation = (inputs) => {
 
 export const calculateChecklistScore = (inputs) => {
   const { 
-    capacityUtilization, // %
-    costIncrease, // boolean
-    goldenWindow, // string key
-    signalsCheckedCount // number 0-10
+    capacityUtilization, 
+    costIncrease, 
+    goldenWindow, 
+    signalsCheckedCount 
   } = inputs;
 
-  let rawScore = signalsCheckedCount; // Baza: 1 pkt za każdy sygnał (max 10)
+  let rawScore = signalsCheckedCount; 
 
-  // Capacity logic
   if (capacityUtilization >= 85) rawScore += 2;
   else if (capacityUtilization >= 70) rawScore += 1;
 
-  // Cost increase
   if (costIncrease) rawScore += 1;
 
-  // Golden window
   const goodWindows = ['january', 'september', 'yearEnd'];
   if (goodWindows.includes(goldenWindow)) rawScore += 1;
 
-  // Normalizacja do rekomendacji
-  // Max teoretyczny: 10 + 2 + 1 + 1 = 14.
-  // Mapujemy na poziomy z treści.
-  
   let recommendation = {
-    level: 'wait',
     title: 'Wynik niski (0-3)',
     desc: 'Twoje ceny prawdopodobnie nie są priorytetowym problemem. Najpierw zadbaj o pozyskiwanie klientów, jakość usługi i podstawowy marketing. Podwyżkę zostaw na później.',
-    strategy: 'inflation' // fallback
   };
 
   if (rawScore >= 9) {
     recommendation = {
-      level: 'reposition',
       title: 'Wynik bardzo wysoki (9+)',
       desc: 'Twoje ceny są zdecydowanie za niskie względem obłożenia, wartości i rynku. Spokojnie możesz myśleć o mocniejszym ruchu (repozycjonowanie, +30–50%), jeśli jesteś gotów(-a) na wymianę części bazy klientów.',
-      strategy: 'reposition'
     };
   } else if (rawScore >= 7) {
     recommendation = {
-      level: 'grow',
       title: 'Wynik wysoki (7-8)',
       desc: 'To dobry moment na podwyżkę. Z danych wynika, że jesteś przeciążony(-a), za tani(-a) i dokładasz do rozwoju zawodowego. Rozważ podwyżkę 10–20% zgodnie ze strategią „Wzrost jakości”.',
-      strategy: 'quality'
     };
   } else if (rawScore >= 4) {
     recommendation = {
-      level: 'mild',
       title: 'Wynik średni (4-6)',
       desc: 'Masz pierwsze sygnały, że Twoje ceny zaczynają odstawać od rzeczywistości. Rozważ delikatną korektę inflacyjną (np. +3–8%) dla nowych klientów i przygotuj grunt pod większą zmianę.',
-      strategy: 'inflation'
     };
   }
 
@@ -130,57 +159,10 @@ export const buildMessage = (type, context) => {
   const { clientName, oldPrice, newPrice, packageName, startDate, graceDate } = context;
   
   const templates = {
-    sandwich: `Cześć ${clientName},
-Na początku chcę Ci bardzo podziękować za dotychczasową współpracę. Widzę, jak przez ostatnie miesiące poprawiła się Twoja forma i mega mnie to cieszy – to w dużej mierze Twoja zasługa.
-
-Piszę, bo od ${startDate} aktualizuję cennik moich usług.
-Cena za ${packageName} wzrośnie z ${oldPrice} zł do ${newPrice} zł.
-
-Dzięki tej zmianie mogę dalej inwestować w sprzęt, szkolenia i narzędzia, które przekładają się na szybsze i lepsze efekty moich podopiecznych.
-
-Ponieważ jesteś stałym klientem, chcę, żebyś na tym zyskał(-a):
-– dla Ciebie nowa cena zacznie obowiązywać dopiero od ${graceDate}
-ALBO
-– możesz jeszcze do końca miesiąca wykupić kolejny pakiet w starej cenie.
-
-Jeśli masz jakiekolwiek pytania – śmiało pisz.
-Działamy dalej i robimy formę. 💪`,
-
-    official: `Szanowny/a ${clientName},
-dziękuję za dotychczasową współpracę i zaufanie, jakim mnie obdarzasz.
-
-W celu utrzymania wysokiej jakości usług oraz dalszego rozwoju zaplecza merytorycznego i sprzętowego, od ${startDate} aktualizuję cennik.
-Nowa cena za ${packageName} będzie wynosić ${newPrice} zł (dotychczas: ${oldPrice} zł).
-
-Zmiana ta pozwoli mi nadal zapewniać Panu/Pani opiekę na najwyższym poziomie oraz rozwijać narzędzia, które usprawniają proces współpracy.
-
-Dla obecnych klientów przewidziałem/am okres przejściowy – w Pana/Pani przypadku nowa stawka zacznie obowiązywać od ${graceDate}.
-
-W razie pytań jestem do dyspozycji.
-Z wyrazami szacunku,`,
-
-    casual: `Hej ${clientName}! 👋
-Krótka sprawa organizacyjna – od ${startDate} podnoszę ceny za ${packageName} z ${oldPrice} zł na ${newPrice} zł.
-
-Robię to po to, żeby dalej dowozić poziom (sprzęt, szkolenia, czas dla podopiecznych), a nie się „rozjechać” finansowo.
-
-Dla Ciebie mam jednak lepsze warunki:
-– do ${graceDate} możesz jeszcze działać na starej cenie,
-ALBO wykupić teraz pakiet po starej stawce.
-
-Jak coś jest niejasne – pisz śmiało.
-Nic się nie zmienia jeśli chodzi o naszą współpracę – dalej ciśniemy. 💪`,
-
-    vip: `Dzień dobry ${clientName},
-w związku z rozwojem oferty premium oraz ograniczoną liczbą miejsc we współpracy indywidualnej, od ${startDate} aktualizuję stawkę za ${packageName} do ${newPrice} zł (obecnie: ${oldPrice} zł).
-
-Zmiana ta odzwierciedla aktualny poziom zaangażowania, dostępności oraz rezultatów, jakie osiągają moi klienci.
-
-Jako osoba już ze mną współpracująca, otrzymuje Pan/Pani preferencyjne warunki:
-– nowa stawka zacznie obowiązywać dopiero od ${graceDate},
-– do tego czasu może Pan/Pani wykupić kolejne pakiety po obecnej cenie.
-
-Dziękuję za zaufanie i cieszę się na dalszą współpracę.`
+    sandwich: `Cześć ${clientName},\n\nNa początku chcę Ci bardzo podziękować za dotychczasową współpracę. Widzę, jak przez ostatnie miesiące poprawiła się Twoja forma i mega mnie to cieszy.\n\nPiszę, bo od ${startDate} aktualizuję cennik moich usług. Cena za ${packageName} wzrośnie z ${oldPrice} zł do ${newPrice} zł.\n\nDzięki tej zmianie mogę dalej inwestować w jakość naszej współpracy. Ponieważ jesteś stałym klientem, dla Ciebie nowa cena zacznie obowiązywać dopiero od ${graceDate}.\n\nDziałamy dalej i robimy formę. 💪`,
+    official: `Szanowny/a ${clientName},\n\nInformuję o planowanej waloryzacji cennika usług od ${startDate}. Nowa cena za ${packageName} wyniesie ${newPrice} zł (dotychczas: ${oldPrice} zł).\n\nZmiana ta podyktowana jest wzrostem kosztów operacyjnych oraz inwestycjami w jakość. Dla obecnych klientów przewidziałem okres przejściowy – nowa stawka obowiązuje od ${graceDate}.\n\nZ wyrazami szacunku,`,
+    casual: `Hej ${clientName}! 👋\n\nSzybkie info: od ${startDate} podnoszę ceny za ${packageName} na ${newPrice} zł. Inwestuję w sprzęt i szkolenia, żebyśmy robili jeszcze lepsze wyniki!\n\nDla Ciebie jako stałego klienta - stara cena zostaje jeszcze do ${graceDate}. Dzięki, że jesteś!`,
+    vip: `Dzień dobry ${clientName},\n\nW związku z rozwojem oferty premium, od ${startDate} aktualizuję stawkę za ${packageName} do ${newPrice} zł.\n\nJako osoba już ze mną współpracująca, otrzymuje Pan/Pani preferencyjne warunki: nowa stawka wejdzie w życie dopiero ${graceDate}.\n\nDziękuję za zaufanie.`
   };
 
   return templates[type] || "Wybierz szablon.";

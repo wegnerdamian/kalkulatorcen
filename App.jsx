@@ -4,7 +4,8 @@ import {
   Wallet, Clock, Sword, ScrollText, Target, Info, Coins, 
   Settings2, Activity, Dumbbell, Apple, Brain, Layers, 
   CalendarCheck, Copy, Printer, ChevronDown, ChevronUp,
-  MessageSquare, Save, Edit3, ArrowRight, BarChart3, HelpCircle
+  MessageSquare, Save, Edit3, ArrowRight, BarChart3, HelpCircle,
+  AlertOctagon, ThumbsUp
 } from 'lucide-react';
 
 // --- KONFIGURACJA I DANE ---
@@ -13,8 +14,10 @@ const PROFESSIONS = {
   trainer: { 
     label: "Trener Personalny", 
     icon: Dumbbell, 
-    sessionName: "trening", 
-    variableName: "koszt dojazdu/siłowni",
+    unitClient: "podopiecznych",
+    unitSession: "treningów",
+    priceLabel: "Cena za trening",
+    varCostLabel: "Koszt dojazdu/siłowni",
     stack: [
       { id: 'video', label: 'Biblioteka ćwiczeń wideo', cost: 'Niski (raz nagrane)', value: 'Wysoka (dostęp 24/7)' },
       { id: 'report', label: 'Raport postępów (PDF)', cost: 'Średni (czas)', value: 'Wysoka (dowód efektów)' },
@@ -25,8 +28,10 @@ const PROFESSIONS = {
   dietitian: { 
     label: "Dietetyk", 
     icon: Apple, 
-    sessionName: "konsultacja", 
-    variableName: "koszt materiałów",
+    unitClient: "pacjentów",
+    unitSession: "jadłospisów/wizyt",
+    priceLabel: "Cena za pakiet/wizytę",
+    varCostLabel: "Koszt materiałów/oprogramowania",
     stack: [
       { id: 'shopping', label: 'Interaktywna lista zakupów', cost: 'Niski', value: 'Wysoka (wygoda)' },
       { id: 'eating_out', label: 'Poradnik "Jedzenie na mieście"', cost: 'Niski (raz zrobiony)', value: 'Średnia' },
@@ -37,8 +42,10 @@ const PROFESSIONS = {
   physio: { 
     label: "Fizjoterapeuta", 
     icon: Activity, 
-    sessionName: "wizyta", 
-    variableName: "koszt jednorazowy",
+    unitClient: "pacjentów",
+    unitSession: "wizyt",
+    priceLabel: "Cena za wizytę",
+    varCostLabel: "Koszt jednorazowy (podkłady itp.)",
     stack: [
       { id: 'home_ex', label: 'Wideo z instruktażem do domu', cost: 'Niski', value: 'Bardzo wysoka (skuteczność)' },
       { id: 'bands', label: 'Zestaw gum w cenie', cost: 'Niski (koszt gumy)', value: 'Wysoka (prezent)' },
@@ -62,19 +69,19 @@ const STRATEGIES = {
     pros: ["Buduje autorytet", "Zdrowy wzrost marży"],
     cons: ["Wymaga uzasadnienia (Value Stack)"]
   },
+  hybrid: {
+    title: "Model Hybrydowy (Rekomendowany)",
+    range: "Mix",
+    desc: "Wilk syty i owca cała. Nowi klienci płacą od razu 100% nowej stawki. Starzy dostają mniejszą podwyżkę (+10%) lub długi okres ochronny (3 msc).",
+    pros: ["Zabezpiecza Cashflow", "Buduje lojalność"],
+    cons: ["Wymaga zarządzania dwoma cennikami przez chwilę"]
+  },
   reposition: {
     title: "Repozycjonowanie",
     range: "30-50%+",
     desc: "Rewolucja. Zmieniasz grupę docelową (np. z 'Kowalskiego' na 'Biznes/Sport'). Liczysz się z wymianą bazy klientów.",
     pros: ["Skokowy wzrost dochodu", "Mniej pracy, lepsi klienci"],
     cons: ["Duże ryzyko odejść", "Wymaga silnego marketingu"]
-  },
-  hybrid: {
-    title: "Model Hybrydowy",
-    range: "Mix",
-    desc: "Rekomendowane! Nowi klienci płacą od razu 100% nowej stawki. Starzy dostają mniejszą podwyżkę lub długi okres ochronny.",
-    pros: ["Wilk syty i owca cała", "Lojalność stałych klientów"],
-    cons: ["Wymaga zarządzania dwoma cennikami przez chwilę"]
   }
 };
 
@@ -93,9 +100,9 @@ const calculateChecklistScore = (inputs) => {
   let status = { label: "NISKI PRIORYTET", color: "text-slate-400", bg: "bg-slate-800", desc: "Twoja sytuacja jest stabilna. Skup się na marketingu." };
   
   if (score >= 7) {
-    status = { label: "KONIECZNIE PODNIEŚ CENY!", color: "text-emerald-400", bg: "bg-emerald-500/10", desc: "Tracisz pieniądze każdego dnia. Masz idealne warunki do podwyżki." };
+    status = { label: "KONIECZNIE PODNIEŚ CENY!", color: "text-emerald-400", bg: "bg-emerald-500/10", desc: "Twoje wyniki (obłożenie/sprzedaż) krzyczą, że jesteś za tani. Tracisz pieniądze każdego dnia." };
   } else if (score >= 4) {
-    status = { label: "CZAS NA ANALIZĘ", color: "text-amber-400", bg: "bg-amber-500/10", desc: "Masz mocne sygnały ostrzegawcze. Przygotuj się do korekty." };
+    status = { label: "CZAS NA ANALIZĘ", color: "text-amber-400", bg: "bg-amber-500/10", desc: "Masz mocne sygnały ostrzegawcze. Przygotuj się do korekty cenowej." };
   }
 
   return { score, status };
@@ -128,13 +135,19 @@ const runSimulation = (inputs) => {
   if (inputs.increase >= 30) suggestedStrategy = 'reposition';
   else if (inputs.increase >= 10) suggestedStrategy = 'quality';
 
+  // Absolute Check
+  const isProfitable = inputs.showCosts ? (newProfit > currentProfit && newProfit > 0) : (newRevenue > currentRevenue);
+  const marginWarning = inputs.showCosts && (newProfit <= 0);
+
   return {
     currentRevenue, currentProfit,
     newRevenue, newProfit,
     diff: inputs.showCosts ? (newProfit - currentProfit) : (newRevenue - currentRevenue),
     newPrice: Math.ceil(newPrice),
     clientsLost, clientsLeft,
-    suggestedStrategy
+    suggestedStrategy,
+    isProfitable,
+    marginWarning
   };
 };
 
@@ -227,8 +240,8 @@ const DiagnosisTab = ({ state, setState }) => {
              tooltip="Ile % Twoich godzin jest zajętych? >85% to sygnał alarmowy."
            />
            <SmartInput 
-             label="Wskaźnik Konwersji" unit="%" min={0} max={100} value={state.conversion} onChange={v => setState({...state, conversion: v})}
-             tooltip="Ile osób decyduje się na współpracę? >80% bez negocjacji = za tanio."
+             label="Wskaźnik Konwersji Sprzedaży" unit="%" min={0} max={100} value={state.conversion} onChange={v => setState({...state, conversion: v})}
+             tooltip="Ile osób decyduje się na współpracę? >80% bez negocjacji = jesteś za tani."
            />
            <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => setState({...state, costIncrease: !state.costIncrease})}>
               <div className={`w-5 h-5 rounded border flex items-center justify-center ${state.costIncrease ? 'bg-amber-500 border-amber-500' : 'border-slate-600'}`}>
@@ -274,13 +287,18 @@ const SimulatorTab = ({ state, setState, profession }) => {
   const res = runSimulation(state);
   
   const saveResult = () => {
-    // Prosta symulacja zapisu
-    alert("Symulacja zapisana w pamięci przeglądarki!");
-    localStorage.setItem('gildia_sim_v1', JSON.stringify(state));
+    const data = JSON.stringify(state);
+    const blob = new Blob([data], {type: "text/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `symulacja_${profession}_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    alert("Zapisano symulację do pliku!");
   };
 
-  const statusColor = res.diff > 0 ? "text-emerald-400" : res.diff < 0 ? "text-red-400" : "text-slate-400";
-  const statusBg = res.diff > 0 ? "bg-emerald-500/10" : res.diff < 0 ? "bg-red-500/10" : "bg-slate-800";
+  const statusColor = res.isProfitable ? "text-emerald-400" : "text-red-400";
+  const statusBg = res.isProfitable ? "bg-emerald-500/10" : "bg-red-500/10";
 
   return (
     <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in">
@@ -292,18 +310,18 @@ const SimulatorTab = ({ state, setState, profession }) => {
                 <button onClick={saveResult} className="text-xs text-slate-500 hover:text-white flex items-center gap-1"><Save className="w-3 h-3"/> Zapisz</button>
              </div>
              
-             <SmartInput label="Liczba klientów" unit="os." value={state.clients} onChange={v => setState({...state, clients: v})} min={1} max={100} />
-             <SmartInput label={`Średnio ${pConf.sessionName}ów / klienta`} unit="szt." value={state.sessions} onChange={v => setState({...state, sessions: v})} min={1} max={30} />
-             <SmartInput label="Aktualna stawka (szt.)" unit="PLN" value={state.price} onChange={v => setState({...state, price: v})} min={10} max={1000} step={5} />
+             <SmartInput label={`Liczba ${pConf.unitClient}`} unit="os." value={state.clients} onChange={v => setState({...state, clients: v})} min={1} max={100} />
+             <SmartInput label={`Średnio ${pConf.unitSession} na osobę`} unit="szt." value={state.sessions} onChange={v => setState({...state, sessions: v})} min={1} max={30} />
+             <SmartInput label={pConf.priceLabel} unit="PLN" value={state.price} onChange={v => setState({...state, price: v})} min={10} max={1000} step={5} />
              
              <div className="py-4 border-t border-slate-800">
                 <button onClick={() => setState({...state, showCosts: !state.showCosts})} className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white mb-4">
-                   <Coins className="w-4 h-4"/> {state.showCosts ? "Ukryj Koszty" : "Uwzględnij Koszty (Opcjonalne)"}
+                   <Coins className="w-4 h-4"/> {state.showCosts ? "Ukryj Koszty" : "Uwzględnij Koszty (Analiza Marży)"}
                 </button>
                 {state.showCosts && (
                    <div className="space-y-4 animate-in slide-in-from-top-2">
                       <SmartInput label="Koszty stałe (miesięcznie)" unit="PLN" value={state.fixedCosts} onChange={v => setState({...state, fixedCosts: v})} min={0} max={50000} step={100} hint="ZUS, lokal, księgowość" />
-                      <SmartInput label={pConf.variableName} unit="PLN" value={state.varCost} onChange={v => setState({...state, varCost: v})} min={0} max={500} step={5} />
+                      <SmartInput label={pConf.varCostLabel} unit="PLN" value={state.varCost} onChange={v => setState({...state, varCost: v})} min={0} max={500} step={5} />
                    </div>
                 )}
              </div>
@@ -317,7 +335,7 @@ const SimulatorTab = ({ state, setState, profession }) => {
              <SmartInput 
                 label="Szacowana utrata klientów" unit="%" value={state.churn} onChange={v => setState({...state, churn: v})} min={0} max={100}
                 markers={[{at: 10, label: 'ZDROWY', color: 'bg-emerald-500'}, {at: 20, label: 'RYZYKO', color: 'bg-red-500'}]}
-                tooltip="Zdrowy churn po podwyżce to 10-15%. Oznacza naturalną wymianę klientów."
+                tooltip="Zdrowy churn po podwyżce to 10-15%. Oznacza naturalną wymianę klientów na lepiej płacących."
              />
           </div>
        </div>
@@ -344,16 +362,22 @@ const SimulatorTab = ({ state, setState, profession }) => {
              </div>
 
              {/* Karta Werdyktu */}
-             <div className={`p-6 rounded-xl border ${res.diff >= 0 ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
+             <div className={`p-6 rounded-xl border ${res.isProfitable ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
                 <h3 className={`font-bold mb-2 flex items-center gap-2 ${statusColor}`}>
-                   {res.diff >= 0 ? <CheckCircle className="w-5 h-5"/> : <ShieldAlert className="w-5 h-5"/>}
-                   {res.diff >= 0 ? "OPŁACALNE" : "NIEOPŁACALNE"}
+                   {res.isProfitable ? <CheckCircle className="w-5 h-5"/> : <ShieldAlert className="w-5 h-5"/>}
+                   {res.isProfitable ? "OPŁACALNE" : "NIEOPŁACALNE"}
                 </h3>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                   {res.diff >= 0 
+                   {res.isProfitable 
                      ? `Przy podwyżce o ${state.increase}% zarabiasz więcej, nawet jeśli odejdzie ${res.clientsLost.toFixed(1)} osób. Masz więcej czasu i pieniędzy.` 
                      : `Przy założonym churnie (${state.churn}%) tracisz pieniądze. Musisz albo zmniejszyć churn (lepsza oferta), albo zwiększyć podwyżkę.`}
                 </p>
+                {res.marginWarning && (
+                    <div className="mt-4 p-3 bg-red-900/20 border border-red-500/30 rounded text-xs text-red-300 flex gap-2 items-start">
+                        <AlertOctagon className="w-4 h-4 shrink-0 mt-0.5"/>
+                        <strong>Uwaga:</strong> Mimo wzrostu, Twoja marża jest nadal ujemna lub zerowa. Dokładasz do interesu. Podnieś cenę drastycznie lub tnij koszty.
+                    </div>
+                )}
              </div>
           </div>
        </div>
@@ -365,7 +389,7 @@ const SimulatorTab = ({ state, setState, profession }) => {
 
 const ActionTab = ({ simState, profession }) => {
   const [step, setStep] = useState(1);
-  const [selectedStrategy, setSelectedStrategy] = useState('quality');
+  const [selectedStrategy, setSelectedStrategy] = useState('hybrid');
   const [stack, setStack] = useState({});
   const [msgType, setMsgType] = useState('sandwich');
   const [customMsg, setCustomMsg] = useState('');
@@ -414,14 +438,16 @@ const ActionTab = ({ simState, profession }) => {
                       </div>
                    ))}
                 </div>
-                <button onClick={() => setStep(2)} className="float-right bg-white text-slate-900 px-6 py-2 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors flex items-center gap-2">Dalej <ArrowRight className="w-4 h-4"/></button>
+                <div className="flex justify-end mt-4">
+                    <button onClick={() => setStep(2)} className="bg-white text-slate-900 px-6 py-2 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors flex items-center gap-2">Dalej <ArrowRight className="w-4 h-4"/></button>
+                </div>
              </div>
           )}
 
           {step === 2 && (
              <div className="space-y-6">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2"><Layers className="text-amber-500"/> Zbuduj Value Stack</h3>
-                <p className="text-slate-400 text-sm">Zaznacz, co dodasz do oferty, aby uzasadnić nową cenę ({newPrice} zł). Wybrane elementy pojawią się w wiadomości.</p>
+                <p className="text-slate-400 text-sm">Zaznacz, co dodasz do oferty, aby uzasadnić nową cenę ({newPrice} zł). Wybrane elementy pojawią się automatycznie w wiadomości.</p>
                 <div className="grid md:grid-cols-2 gap-3">
                    {pConf.stack.map(item => (
                       <div key={item.id} onClick={() => setStack({...stack, [item.id]: !stack[item.id]})} className={`p-4 rounded-xl border cursor-pointer flex items-center gap-3 transition-all ${stack[item.id] ? 'bg-amber-500/10 border-amber-500' : 'bg-slate-950 border-slate-700'}`}>
@@ -453,8 +479,6 @@ const ActionTab = ({ simState, profession }) => {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
-                   <SmartInput label="Data zmiany" type="text" value={dates.start} onChange={v => {}}  unit="" hint="Wpisz np. 1 Stycznia" /> 
-                   {/* Hack: SmartInput expects number, but for demo UI we use simple inputs below for dates */}
                    <div className="space-y-1">
                       <label className="text-xs text-slate-400">Data wejścia (Nowi)</label>
                       <input type="text" placeholder="np. 1 Stycznia" className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white" onChange={e => setDates({...dates, start: e.target.value})} />
@@ -471,9 +495,12 @@ const ActionTab = ({ simState, profession }) => {
                       onChange={e => setCustomMsg(e.target.value)} 
                       className="w-full h-64 bg-slate-950 border border-slate-700 rounded-xl p-4 text-sm text-slate-300 font-mono leading-relaxed focus:border-amber-500 outline-none resize-none"
                    />
-                   <button onClick={() => {navigator.clipboard.writeText(customMsg); alert("Skopiowano!")}} className="absolute bottom-4 right-4 bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg">
-                      <Copy className="w-4 h-4"/> Kopiuj
-                   </button>
+                   <div className="absolute bottom-4 right-4 flex gap-2">
+                        <span className="text-[10px] text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800">Możesz edytować tekst</span>
+                        <button onClick={() => {navigator.clipboard.writeText(customMsg); alert("Skopiowano!")}} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg">
+                            <Copy className="w-4 h-4"/> Kopiuj
+                        </button>
+                   </div>
                 </div>
                 
                 <div className="flex justify-end gap-4">
@@ -485,15 +512,15 @@ const ActionTab = ({ simState, profession }) => {
 
           {step === 4 && (
              <div className="space-y-6">
-                <h3 className="text-xl font-bold text-white flex items-center gap-2"><CalendarCheck className="text-amber-500"/> Plan Wdrożenia</h3>
+                <h3 className="text-xl font-bold text-white flex items-center gap-2"><CalendarCheck className="text-amber-500"/> Twój Plan Wdrożenia</h3>
                 <div className="space-y-4">
                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex gap-4 opacity-50">
                       <div className="w-8 h-8 rounded-full bg-emerald-900/50 flex items-center justify-center text-emerald-500 font-bold">✓</div>
-                      <div><h4 className="font-bold text-slate-400">Analiza i Strategia</h4><p className="text-xs text-slate-600">Zrobione w poprzednich krokach.</p></div>
+                      <div><h4 className="font-bold text-slate-400">Analiza i Strategia</h4><p className="text-xs text-slate-600">Wybrana strategia: {STRATEGIES[selectedStrategy].title}</p></div>
                    </div>
                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex gap-4">
                       <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold">2</div>
-                      <div><h4 className="font-bold text-white">Przygotowanie Oferty (Tydzień 2)</h4><p className="text-xs text-slate-400">Dopracuj materiały z Value Stack (PDFy, nagrania). Zaktualizuj grafikę cennika.</p></div>
+                      <div><h4 className="font-bold text-white">Przygotowanie Oferty (Tydzień 2)</h4><p className="text-xs text-slate-400">Zaktualizuj cennik na stronie. Przygotuj materiały z Value Stack.</p></div>
                    </div>
                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex gap-4">
                       <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold">3</div>
@@ -520,7 +547,7 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('diagnosis');
   const [profession, setProfession] = useState('trainer');
   
-  // GLOBALNY STAN (Współdzielony między symulatorem a gotowcami)
+  // GLOBALNY STAN (Współdzielony)
   const [simState, setSimState] = useState({
     clients: 20, sessions: 8, price: 150, fixedCosts: 2000, varCost: 0,
     increase: 20, churn: 15, churnType: 'percent', sessionsAfter: 8,
@@ -539,7 +566,7 @@ const App = () => {
                 <div className="bg-amber-500/10 p-2 rounded-lg border border-amber-500/20"><Sword className="text-amber-500 w-6 h-6" /></div>
                 <div>
                    <h1 className="text-lg font-bold text-white leading-none mb-1">GILDIA <span className="text-amber-500">TRENERÓW</span></h1>
-                   <select value={profession} onChange={(e) => setProfession(e.target.value)} className="bg-slate-950 text-[10px] uppercase font-bold text-slate-400 rounded border border-slate-700 outline-none focus:border-amber-500 py-1 px-2">
+                   <select value={profession} onChange={(e) => setProfession(e.target.value)} className="bg-slate-950 text-[10px] uppercase font-bold text-slate-400 rounded border border-slate-700 outline-none focus:border-amber-500 py-1 px-2 cursor-pointer">
                       {Object.entries(PROFESSIONS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                    </select>
                 </div>
@@ -547,7 +574,7 @@ const App = () => {
             <div className="flex overflow-x-auto gap-2 pb-1 md:pb-0 no-scrollbar w-full md:w-auto">
                <NavButton id="diagnosis" label="1. Diagnoza" icon={Activity} activeTab={activeTab} setActiveTab={setActiveTab} />
                <NavButton id="simulator" label="2. Liczby" icon={Calculator} activeTab={activeTab} setActiveTab={setActiveTab} />
-               <NavButton id="action" label="3. Wdrożenie" icon={Target} activeTab={activeTab} setActiveTab={setActiveTab} />
+               <NavButton id="action" label="3. Akcja" icon={Target} activeTab={activeTab} setActiveTab={setActiveTab} />
             </div>
         </div>
       </header>
@@ -559,7 +586,7 @@ const App = () => {
       </main>
 
       <footer className="max-w-4xl mx-auto px-4 text-center text-slate-600 text-xs mt-12 pt-8 border-t border-slate-800">
-        <p>System Podnoszenia Cen v4.0 &bull; Gildia Trenerów &bull; Wszelkie prawa zastrzeżone.</p>
+        <p>System Podnoszenia Cen v5.0 &bull; Gildia Trenerów &bull; Wszelkie prawa zastrzeżone.</p>
       </footer>
     </div>
   );
